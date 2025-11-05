@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}建立新專案{% endblock %}
+
+{% block content %}
+<div class="card shadow-lg border-0">
+    <div class="card-body p-4 p-md-5">
+        <h2 class="card-title text-center fw-bold mb-4" style="color: #002c6a;">建立您的新專案</h2>
+
+        <div id="error-message" class="alert alert-danger d-none" role="alert"></div>
+        <div id="success-message" class="alert alert-success d-none" role="alert"></div>
+
+        <form id="create-project-form">
+            <div class="mb-3">
+                <label for="title" class="form-label fw-medium">專案標題</label>
+                <input type="text" id="title" name="title" class="form-control form-control-lg" required>
+            </div>
+            <div class="mb-4">
+                <label for="description" class="form-label fw-medium">專案描述</label>
+                <textarea id="description" name="description" class="form-control form-control-lg" rows="5" placeholder="詳細說明您的需求..."></textarea>
+            </div>
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary btn-lg fw-bold">發布專案</button>
+                <a href="/dashboard" class="btn btn-outline-secondary">取消</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+    document.getElementById("create-project-form").addEventListener("submit", async function(event) {
+        event.preventDefault();
+
+        const title = event.target.title.value;
+        const description = event.target.description.value;
+        const errorMessage = document.getElementById("error-message");
+        const successMessage = document.getElementById("success-message");
+
+        try {
+            // 呼叫我們在 "docs" 測試過的 API
+            const response = await fetch("/api/projects/", {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json"
+                    // Session cookie 會由瀏覽器自動帶上，不需手動設定
+                },
+                body: JSON.stringify({
+                    title: title,
+                    description: description
+                })
+            });
+
+            if (response.ok) {
+                // 成功！
+                errorMessage.classList.add("d-none");
+                successMessage.textContent = "專案建立成功！ 2 秒後將返回儀表板...";
+                successMessage.classList.remove("d-none");
+                
+                // 延遲 2 秒後跳轉
+                setTimeout(() => {
+                    window.location.href = "/dashboard";
+                }, 2000);
+
+            } else {
+                // 失敗 (例如 401, 403)
+                const data = await response.json();
+                errorMessage.textContent = data.detail || "建立失敗。";
+                errorMessage.classList.remove("d-none");
+                successMessage.classList.add("d-none");
+            }
+        } catch (error) {
+            errorMessage.textContent = "發生網路錯誤，請稍後再試。";
+            errorMessage.classList.remove("d-none");
+            successMessage.classList.add("d-none");
+        }
+    });
+</script>
+{% endblock %}

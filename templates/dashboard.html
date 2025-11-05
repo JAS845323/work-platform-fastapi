@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}首頁 - 工作委託平台{% endblock %}
+
+{% block content %}
+
+{% if user.role == 'client' %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0 fw-bold" style="color: #002c6a;">我的專案 (首頁)</h2>
+    <a href="/project/create" class="btn btn-primary fw-bold">
+        + 建立新專案
+    </a>
+</div>
+
+<div class="list-group shadow-sm">
+    {% for project in my_projects %}
+    <a href="/project/{{ project.id }}" class="list-group-item list-group-item-action p-3">
+        <div class="d-flex w-100 justify-content-between">
+            <h5 class="mb-1 fw-bold">{{ project.title }}</h5>
+            <small class="text-muted">{{ project.created_at.strftime('%Y-%m-%d') }}</small>
+        </div>
+        <p class="mb-1 text-muted">
+            {{ project.description | truncate(100) }}
+        </p>
+        <small>
+            {% if project.status == 'open' %}
+                <span class="badge bg-success">開放中</span>
+            {% elif project.status == 'in_progress' %}
+                <span class="badge bg-warning text-dark">執行中</span>
+            {% elif project.status == 'completed' %}
+                <span class="badge bg-secondary">已結案</span>
+            {% else %}
+                <span class="badge bg-danger">已退件</span>
+            {% endif %}
+        </small>
+    </a>
+    {% else %}
+    <div class="list-group-item p-3">
+        <p class="mb-0 text-center text-muted">您尚未建立任何專案。</p>
+    </div>
+    {% endfor %}
+</div>
+
+
+{% else %}
+
+<div class="mb-4">
+    <h2 class="fw-bold" style="color: #002c6a;">我承接的專案</h2>
+    <p class="text-muted">您目前正在執行或已完成的專案。</p>
+</div>
+<div class="list-group shadow-sm mb-5">
+    {% for project in my_projects %}
+    <a href="/project/{{ project.id }}" class="list-group-item list-group-item-action p-3">
+        <div class="d-flex w-100 justify-content-between">
+            <h5 class="mb-1 fw-bold">{{ project.title }}</h5>
+            {% if project.status == 'in_progress' %}
+                <span class="badge bg-warning text-dark">執行中</span>
+            {% elif project.status == 'completed' %}
+                <span class="badge bg-secondary">已結案</span>
+            {% elif project.status == 'rejected' %}
+                <span class="badge bg-danger">已退件</span>
+            {% endif %}
+        </div>
+        <p class="mb-1 text-muted">{{ project.description | truncate(100) }}</p>
+        <small class="text-primary fw-medium">
+            發布者: {{ project.client.username }}
+        </small>
+    </a>
+    {% else %}
+    <div class="list-group-item p-3 text-center text-muted">
+        您尚未承接任何專案。
+    </div>
+    {% endfor %}
+</div>
+
+<div class="mb-4">
+    <h2 class="fw-bold" style="color: #002c6a;">開放中的專案</h2>
+    <p class="text-muted">這是目前市場上所有開放投標的專案。</p>
+</div>
+<div class="list-group shadow-sm">
+    {% for project in open_projects %}
+    <a href="/project/{{ project.id }}" class="list-group-item list-group-item-action p-3">
+        <div class="d-flex w-100 justify-content-between">
+            <h5 class="mb-1 fw-bold">{{ project.title }}</h5>
+            <small class="text-muted">{{ project.created_at.strftime('%Y-%m-%d') }}</small>
+        </div>
+        <p class="mb-1 text-muted">
+            {{ project.description | truncate(100) }}
+        </p>
+        <small class="text-primary fw-medium">
+            發布者: {{ project.client.username }}
+        </small>
+    </a>
+    {% else %}
+    <div class="list-group-item p-3 text-center text-muted">
+        目前沒有開放中的專案。
+    </div>
+    {% endfor %}
+</div>
+
+{% endif %}
+{% endblock %}

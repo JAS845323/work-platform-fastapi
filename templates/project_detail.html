@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.title }}{% endblock %}
+
+{% block content %}
+<div class="row g-4 justify-content-center">
+    
+    <div class="col-lg-7">
+
+        <script>
+            const PROJECT_ID = {{ project.id }};
+            const CURRENT_USER_ID = {{ user.id }};
+        </script>
+
+        <div class="card shadow-lg border-0 mb-4">
+            <div class="card-body p-4 p-md-5">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h2 class="card-title fw-bold mb-0" style="color: #002c6a;">{{ project.title }}</h2>
+                    {% if project.status == 'open' %}
+                        <span class="badge bg-success fs-6">開放中</span>
+                    {% elif project.status == 'in_progress' %}
+                        <span class="badge bg-warning text-dark fs-6">執行中</span>
+                    {% elif project.status == 'completed' %}
+                        <span class="badge bg-secondary fs-6">已結案</span>
+                    {% else %} <span class="badge bg-danger fs-6">已退件</span>
+                    {% endif %}
+                </div>
+                <p class="card-text text-muted">{{ project.description }}</p>
+                <hr>
+                <p class="mb-0">
+                    <small class="text-muted">發布者：</small>
+                    <span class="fw-medium">{{ project.client.username }}</span>
+                    <span class="mx-2 text-muted">|</span>
+                    <small class="text-muted">發布於：</small>
+                    <span class="fw-medium">{{ project.created_at.strftime('%Y-%m-%d') }}</span>
+                </p>
+            </div>
+        </div>
+
+        {% if user.role == 'client' %}
+            
+            {% if project.status == 'open' %}
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white border-0 pt-3">
+                    <h4 class="fw-bold">收到的報價 ({{ bids|length }})</h4>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% for bid in bids %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center p-3">
+                        <div>
+                            <h5 class="mb-1 fw-medium">{{ bid.contractor.username }}</h5>
+                            <p class="mb-1">報價：<strong class="text-danger">${{ "%.0f"|format(bid.bid_amount) }}</strong></p>
+                            <small class="text-muted">{{ bid.proposal_text }}</small>
+                        </div>
+                        <button class="btn btn-success" onclick="selectBid({{ bid.id }})">
+                            選擇此報價
+                        </button>
+                    </div>
+                    {% else %}
+                    <div class="list-group-item p-3 text-center text-muted">
+                        尚未收到任何報價。
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            {% elif project.status == 'in_progress' %}
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white border-0 pt-3">
+                    <h4 class="fw-bold">結案管理</h4>
+                </div>
+                <div class="card-body text-center p-4">
+                    <p class="text-muted">專案正在執行中。如果接案人已交付成果，您可以在此結案。</p>
+                    <button class="btn btn-primary btn-lg mx-2" onclick="updateStatus('completed')">
+                        接受結案
+                    </button>
+                    <button class="btn btn-danger btn-lg mx-2" onclick="updateStatus('rejected')">
+                        退件
+                    </button>
+                </div>
+            </div>
+            
+            {% elif project.status == 'rejected' %}
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white border-0 pt-3">
+                    <h4 class="fw-bold">專案已退件</h4>
+                </div>
+                <div class="card-body text-center p-4">
+                    <p class="text-muted">您已退回此專案。您可以與接案人溝通後，要求對方重做。</p>
+                    <button class="btn btn-warning btn-lg mx-2" onclick="updateStatus('in_progress')">
+                        要求重做 (退回執行中)
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if project.status != 'open' and deliverables %}
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white border-0 pt-3">
+                    <h4 class="fw-bold">交付成果 ({{ deliverables|length }})</h4>
+                </div>
+                <div class="list-group list-group-flush">
+                {% for file in deliverables %}
+                    <a href="/media/{{ file.file_path.replace('uploads/', '') }}" target="_blank" class="list-group-item list-group-item-action p-3">
+                        檔案 {{ loop.index }} (點擊下載)
+                        <small class="text-muted d-block">
+                            上傳於: {{ file.uploaded_at.strftime('%Y-%m-%d %H:%M') }}
+                        </small>
+                    </a>
+                {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+        {% elif user.role == 'contractor' %}
+            
+            {% if project.status == 'open' %}
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white border-0 pt-3">
+                    <h4 class="fw-bold">提出您的報價</h4>
+                </div>
+                <div class="card-body p-4">
+                    <form id="bid-form">
+                        <div class="mb-3">
+                            <label for="bid_amount" class="form-label fw-medium">報價金額</label>
+                            <input type="number" id="bid_amount" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="proposal_text" class="form-label fw-medium">提案說明 (選填)</label>
+                            <textarea id="proposal_text" class="form-control" rows="3"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">送出報價</button>
+                    </form>
+                </div>
+            </div>
+            
+            {% elif project.status == 'in_progress' and project.selected_contractor_id == user.id %}
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white border-0 pt-3">
+                    <h4 class="fw-bold">上傳結案檔案</h4>
+                </div>
+                <div class="card-body p-4">
+                    <form id="upload-form">
+                        <div class="mb-3">
+                            <label for="file" class="form-label fw-medium">選擇檔案</label>
+                            <input type="file" id="file" class="form-control" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">上傳檔案</button>
+                    </form>
+                    
+                    {% if deliverables %}
+                        <hr>
+                        <h5 class="fw-medium">已上傳檔案：</h5>
+                        <ul class="list-group">
+                        {% for file in deliverables %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <a href="/media/{{ file.file_path.replace('uploads/', '') }}" target="_blank">
+                                    檔案 {{ loop.index }} ({{ file.uploaded_at.strftime('%Y-%m-%d') }})
+                                </a>
+                                <button class="btn btn-outline-danger btn-sm" onclick="deleteFile({{ file.id }})">
+                                    刪除
+                                </button>
+                            </li>
+                        {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+        {% endif %}
+
+    </div> <div class="col-lg-5">
+        {% if project.status != 'open' and (user.id == project.client.id or user.id == project.selected_contractor_id) %}
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white border-0 pt-3">
+                <h4 class="fw-bold">專案溝通</h4>
+            </div>
+            <div class="card-body p-4" style="max-height: 400px; overflow-y: auto;" id="message-list">
+                {% for msg in messages %}
+                    <div class="d-flex mb-3 {% if msg.sender_id == user.id %}flex-row-reverse{% endif %}">
+                        <div class="p-3 rounded" 
+                             style="background-color: {% if msg.sender_id == user.id %}var(--cobalt-blue); color: white;{% else %}#eee; color: #333;{% endif %}">
+                            <strong class="d-block">{{ msg.sender.username }}</strong>
+                            {{ msg.message }}
+                            <small class="d-block opacity-75 mt-1">{{ msg.created_at.strftime('%H:%M') }}</small>
+                        </div>
+                    </div>
+                {% else %}
+                    <p class="text-center text-muted" id="no-message-placeholder">尚未有任何訊息.</p>
+                {% endfor %}
+            </div>
+            <div class="card-footer bg-white border-0 p-3">
+                <form id="message-form" class="d-flex">
+                    <input type="text" id="message-input" class="form-control me-2" placeholder="輸入訊息..." required>
+                    <button type="submit" class="btn btn-primary">傳送</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div> </div> {% endblock %}
+
+
+{% block scripts %}
+<script>
+    // --- (通用) API 呼叫函數 ---
+    async function apiCall(endpoint, method, body) {
+        const headers = (body instanceof FormData) ? {} : { "Content-Type": "application/json" };
+        const response = await fetch(endpoint, {
+            method: method,
+            headers: headers,
+            body: (body instanceof FormData) ? body : JSON.stringify(body)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || "API 請求失敗");
+        }
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+            return await response.json();
+        } else {
+            return await response.text();
+        }
+    }
+    
+    // --- (接案人) 投標 ---
+    const bidForm = document.getElementById("bid-form");
+    if (bidForm) {
+        bidForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const bid_amount = e.target.bid_amount.value;
+            const proposal_text = e.target.proposal_text.value;
+            try {
+                await apiCall(`/api/projects/${PROJECT_ID}/bid`, "POST", { bid_amount, proposal_text });
+                alert("投標成功！");
+                window.location.reload();
+            } catch (error) {
+                alert(`投標失敗: ${error.message}`);
+            }
+        });
+    }
+
+    // --- (委託人) 決標 ---
+    async function selectBid(bidId) {
+        if (!confirm("確定要選擇此報價並開始專案嗎？")) return;
+        try {
+            await apiCall(`/api/projects/${PROJECT_ID}/select_bid/${bidId}`, "POST", {});
+            alert("決標成功！專案已開始。");
+            window.location.reload();
+        } catch (error) {
+            alert(`決標失敗: ${error.message}`);
+        }
+    }
+
+    // --- (委託人) 結案管理 ---
+    async function updateStatus(newStatus) {
+        let action = '';
+        if (newStatus === 'completed') { action = '接受結案'; }
+        else if (newStatus === 'rejected') { action = '退件'; }
+        else if (newStatus === 'in_progress') { action = '要求重做'; }
+        
+        if (!confirm(`確定要「${action}」此專案嗎？`)) return;
+        
+        try {
+            await apiCall(`/api/projects/${PROJECT_ID}/status`, "POST", { status: newStatus });
+            alert(`操作成功！專案狀態已更新。`);
+            window.location.reload();
+        } catch (error) {
+            alert(`操作失敗: ${error.message}`);
+        }
+    }
+    
+    // --- (接案人) 檔案上傳 ---
+    const uploadForm = document.getElementById("upload-form");
+    if (uploadForm) {
+        uploadForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const fileInput = e.target.file;
+            if (fileInput.files.length === 0) {
+                alert("請先選擇檔案。");
+                return;
+            }
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+            
+            try {
+                await apiCall(`/api/projects/${PROJECT_ID}/upload`, "POST", formData);
+                alert("檔案上傳成功！");
+                window.location.reload();
+            } catch (error) {
+                alert(`上傳失敗: ${error.message}`);
+            }
+        });
+    }
+
+    // --- (接案人) 刪除檔案 [新功能] ---
+    async function deleteFile(deliverableId) {
+        if (!confirm("確定要永久刪除這個檔案嗎？")) return;
+        
+        try {
+            // 呼叫我們的新 API 12
+            await apiCall(`/api/deliverable/${deliverableId}`, "DELETE", {});
+            alert("檔案刪除成功！");
+            window.location.reload();
+        } catch (error) {
+            alert(`刪除失敗: ${error.message}`);
+        }
+    }
+
+    // --- (雙方) 溝通：傳送訊息 ---
+    const messageForm = document.getElementById("message-form");
+    const messageList = document.getElementById("message-list");
+    const messageInput = document.getElementById("message-input");
+    
+    if (messageForm) {
+        if(messageList) {
+             messageList.scrollTop = messageList.scrollHeight;
+        }
+
+        messageForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const message = messageInput.value;
+            if (!message) return;
+            
+            try {
+                const newMsg = await apiCall(`/api/projects/${PROJECT_ID}/messages`, "POST", { message });
+                
+                const placeholder = document.getElementById("no-message-placeholder");
+                if (placeholder) placeholder.remove();
+                
+                const msgDiv = document.createElement("div");
+                msgDiv.className = "d-flex mb-3 flex-row-reverse";
+                msgDiv.innerHTML = `
+                    <div class="p-3 rounded" style="background-color: var(--cobalt-blue); color: white;">
+                        <strong class="d-block">${newMsg.sender.username}</strong>
+                        ${newMsg.message}
+                        <small class="d-block opacity-75 mt-1">${new Date(newMsg.created_at).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</small>
+                    </div>`;
+                messageList.appendChild(msgDiv);
+                messageInput.value = "";
+                messageList.scrollTop = messageList.scrollHeight;
+                
+            } catch (error) {
+                alert(`訊息傳送失敗: ${error.message}`);
+            }
+        });
+    }
+</script>
+{% endblock %}

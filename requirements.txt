@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+sqlalchemy          # ORM，用來操作 PostgreSQL
+psycopg2-binary     # PostgreSQL 的 Python 驅動程式
+python-multipart    # 處理檔案上傳所需 [cite 100]
+jinja2              # 處理 HTML 樣板 [cite 72]
+passlib[bcrypt]     # 用於密碼雜湊 (hashing)
+python-jose[cryptography] # 用於未來可能的 JWT (JSON Web Tokens)

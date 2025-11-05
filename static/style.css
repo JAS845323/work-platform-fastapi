@@ -1,0 +1,81 @@
+/* static/style.css */
+/* 覆蓋 Bootstrap 5 預設顏色 */
+
+:root {
+    --cobalt-blue: #0047AB;
+    --dark-blue: #002c6a;
+}
+
+/* 覆蓋 .bg-primary (背景) */
+.bg-primary {
+    background-color: var(--cobalt-blue) !important;
+}
+
+/* 覆蓋 .btn-primary (按鈕) */
+.btn-primary {
+    background-color: var(--cobalt-blue);
+    border-color: var(--cobalt-blue);
+}
+
+.btn-primary:hover {
+    background-color: var(--dark-blue);
+    border-color: var(--dark-blue);
+}
+
+/* 覆蓋 .btn-primary:focus (點擊光暈) */
+.btn-primary:focus,
+.btn-primary.focus {
+    box-shadow: 0 0 0 0.25rem rgba(0, 71, 171, 0.5) !important;
+}
+
+/* 覆蓋表單 focus 光暈 */
+.form-control:focus {
+    border-color: var(--cobalt-blue);
+    box-shadow: 0 0 0 0.25rem rgba(0, 71, 171, 0.25);
+}
+
+/* 覆蓋連結顏色 */
+.navbar-dark .navbar-nav .nav-link {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.navbar-dark .navbar-nav .nav-link:hover,
+.navbar-dark .navbar-nav .nav-link.active {
+    color: #ffffff;
+}
+
+a {
+    color: var(--cobalt-blue);
+}
+
+a:hover {
+    color: var(--dark-blue);
+}
+
+.form-footer a {
+    color: var(--cobalt-blue);
+    text-decoration: none;
+    font-weight: 600;
+}
+.form-footer a:hover {
+    text-decoration: underline;
+}
+/* --- 專案詳情頁：聊天室樣式 --- */
+#message-list {
+    scrollbar-width: thin;
+    scrollbar-color: var(--cobalt-blue) var(--light-gray);
+}
+
+#message-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+#message-list::-webkit-scrollbar-track {
+    background: var(--light-gray);
+    border-radius: 4px;
+}
+
+#message-list::-webkit-scrollbar-thumb {
+    background-color: var(--cobalt-blue);
+    border-radius: 4px;
+}
