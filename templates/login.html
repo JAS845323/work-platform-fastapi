@@ -1,32 +1,45 @@
 {% extends "base.html" %}
 
-{% block title %}登入 - 工作委託平台{% endblock %}
+{% block title %}登入 - TaskFlow{% endblock %}
 
 {% block content %}
-<div class="card shadow-lg border-0">
-    <div class="card-body p-4 p-md-5">
-        <h2 class="card-title text-center fw-bold mb-4" style="color: #002c6a;">登入您的帳戶</h2>
+<div class="landing-grid" style="max-width: 1000px; margin: 0 auto;">
 
-        <div id="error-message" class="alert alert-danger d-none" role="alert"></div>
+    <div class="platform-intro">
+        <h1>歡迎回來</h1>
+        <p>
+           登入您的 TaskFlow 帳戶，
+           開始管理您的專案或探索新的工作機會。
+        </p>
+        <ul class="feature-list">
+            <li><i class="fas fa-tasks"></i> 追蹤您的專案進度</li>
+            <li><i class="fas fa-comments"></i> 保持即時溝通</li>
+            <li><i class="fas fa-shield-alt"></i> 安全管理您的交付</li>
+        </ul>
+    </div>
+
+    <div class="glass-card">
+        <h2>登入</h2>
+
+        <div id="error-message" class="error-message"></div>
 
         <form id="login-form">
-            <div class="mb-3">
-                <label for="username" class="form-label fw-medium">使用者名稱</label>
-                <input type="text" id="username" name="username" class="form-control form-control-lg" required>
+            <div class="form-group">
+                <label for="username">使用者名稱</label>
+                <input type="text" id="username" name="username" class="glass-input" required>
             </div>
-            <div class="mb-4">
-                <label for="password" class="form-label fw-medium">密碼</label>
-                <input type="password" id="password" name="password" class="form-control form-control-lg" required>
+            <div class="form-group">
+                <label for="password">密碼</label>
+                <input type="password" id="password" name="password" class="glass-input" required>
             </div>
-            <div class="d-grid">
-                <button type="submit" class="btn btn-primary btn-lg fw-bold">登入</button>
-            </div>
+            <button type="submit" class="glass-button">登入</button>
         </form>
         
-        <div class="text-center mt-4 form-footer">
+        <div class="form-footer">
             沒有帳戶？ <a href="/register">立即註冊</a>
         </div>
     </div>
+
 </div>
 {% endblock %}
 
@@ -35,7 +48,6 @@
 <script>
     document.getElementById("login-form").addEventListener("submit", async function(event) {
         event.preventDefault();
-
         const username = event.target.username.value;
         const password = event.target.password.value;
         const errorMessage = document.getElementById("error-message");
@@ -48,16 +60,16 @@
             });
 
             if (response.ok) {
-                errorMessage.classList.add("d-none"); // 隱藏錯誤
+                errorMessage.style.display = "none";
                 window.location.href = "/dashboard";
             } else {
                 const data = await response.json();
                 errorMessage.textContent = data.detail || "登入失敗，請檢查帳號密碼。";
-                errorMessage.classList.remove("d-none"); // 顯示錯誤
+                errorMessage.style.display = "block";
             }
         } catch (error) {
             errorMessage.textContent = "發生網路錯誤，請稍後再試。";
-            errorMessage.classList.remove("d-none");
+            errorMessage.style.display = "block";
         }
     });
 </script>

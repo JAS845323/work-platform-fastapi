@@ -1,7 +1,10 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, ForeignKey, TIMESTAMP, Enum, NUMERIC
+# db/models.py
+
+# *** 這是【已修正】的第一行，加入了 Boolean ***
+from sqlalchemy import create_engine, Column, Integer, String, Text, ForeignKey, TIMESTAMP, Enum, NUMERIC, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from .db import Base  # 從我們剛剛建立的 db.py 匯入 Base
+from .db import Base  # 從 db.py 匯入 Base
 
 # -------------------------------------------------
 # 注意:
@@ -65,6 +68,9 @@ class Communication(Base):
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     message = Column(Text, nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
+    
+    # *** 這是你 20 萬獎金的新欄位 ***
+    is_read = Column(Boolean, default=False, nullable=False)
 
     # 建立關聯
     project = relationship("Project", back_populates="communications")

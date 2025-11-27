@@ -12,21 +12,25 @@
             const CURRENT_USER_ID = {{ user.id }};
         </script>
 
-        <div class="card shadow-lg border-0 mb-4">
-            <div class="card-body p-4 p-md-5">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h2 class="card-title fw-bold mb-0" style="color: #002c6a;">{{ project.title }}</h2>
-                    {% if project.status == 'open' %}
-                        <span class="badge bg-success fs-6">開放中</span>
-                    {% elif project.status == 'in_progress' %}
-                        <span class="badge bg-warning text-dark fs-6">執行中</span>
-                    {% elif project.status == 'completed' %}
-                        <span class="badge bg-secondary fs-6">已結案</span>
-                    {% else %} <span class="badge bg-danger fs-6">已退件</span>
-                    {% endif %}
+        <div class="detail-card">
+            <div class="detail-card-body">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                    <h2 class="page-title" style="margin: 0;">{{ project.title }}</h2>
+                    <span style="padding: 8px 15px; border-radius: 20px; font-weight: 600; font-size: 0.9rem; white-space: nowrap;
+                        {% if project.status == 'open' %} background: rgba(45, 206, 137, 0.2); color: #2dce89; border: 1px solid rgba(45, 206, 137, 0.3);
+                        {% elif project.status == 'in_progress' %} background: rgba(255, 193, 7, 0.2); color: #ffc107; border: 1px solid rgba(255, 193, 7, 0.3);
+                        {% elif project.status == 'completed' %} background: rgba(136, 152, 170, 0.2); color: #8898aa; border: 1px solid rgba(136, 152, 170, 0.3);
+                        {% else %} background: rgba(236, 100, 75, 0.2); color: #ec644b; border: 1px solid rgba(236, 100, 75, 0.3);
+                        {% endif %}">
+                        {% if project.status == 'open' %} 開放中
+                        {% elif project.status == 'in_progress' %} 執行中
+                        {% elif project.status == 'completed' %} 已結案
+                        {% else %} 已退件
+                        {% endif %}
+                    </span>
                 </div>
-                <p class="card-text text-muted">{{ project.description }}</p>
-                <hr>
+                <p class="page-subtitle" style="margin-bottom: 20px;">{{ project.description }}</p>
+                <hr style="border-color: rgba(255,255,255,0.1); margin-bottom: 20px;">
                 <p class="mb-0">
                     <small class="text-muted">發布者：</small>
                     <span class="fw-medium">{{ project.client.username }}</span>
@@ -40,74 +44,93 @@
         {% if user.role == 'client' %}
             
             {% if project.status == 'open' %}
-            <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white border-0 pt-3">
-                    <h4 class="fw-bold">收到的報價 ({{ bids|length }})</h4>
+            
+            <div class="detail-card">
+                <div class="detail-card-body" style="text-align: center;">
+                    <h3 class="card-header-title" style="text-align: center;">專案管理</h3>
+                    <p>專案仍在開放中，您可以修改內容或取消專案。</p>
+                    <button class="glass-button btn-warning btn-inline" onclick="editProject({{ project.id }})">
+                        修改專案
+                    </button>
+                    <button class="glass-button btn-danger btn-inline" onclick="deleteProject()">
+                        取消(刪除)專案
+                    </button>
                 </div>
-                <div class="list-group list-group-flush">
-                    {% for bid in bids %}
-                    <div class="list-group-item d-flex justify-content-between align-items-center p-3">
-                        <div>
-                            <h5 class="mb-1 fw-medium">{{ bid.contractor.username }}</h5>
-                            <p class="mb-1">報價：<strong class="text-danger">${{ "%.0f"|format(bid.bid_amount) }}</strong></p>
-                            <small class="text-muted">{{ bid.proposal_text }}</small>
-                        </div>
-                        <button class="btn btn-success" onclick="selectBid({{ bid.id }})">
-                            選擇此報價
-                        </button>
-                    </div>
-                    {% else %}
-                    <div class="list-group-item p-3 text-center text-muted">
-                        尚未收到任何報價。
-                    </div>
-                    {% endfor %}
+            </div>
+
+            <div class="detail-card">
+                <div class="detail-card-body">
+                    <h3 class="card-header-title">收到的報價 ({{ bids|length }})</h3>
+                    <ul class="item-list">
+                        {% for bid in bids %}
+                        <li>
+                            <div>
+                                <h5 style="color: white; font-weight: 600;">{{ bid.contractor.username }}</h5>
+                                <p style="margin: 5px 0;">報價：<strong style="color: #ec644b; font-size: 1.1rem;">${{ "%.0f"|format(bid.bid_amount) }}</strong></p>
+                                <small>{{ bid.proposal_text }}</small>
+                            </div>
+                            <button class="glass-button btn-success btn-inline-sm" onclick="selectBid({{ bid.id }})">
+                                選擇此報價
+                            </button>
+                        </li>
+                        {% else %}
+                        <li style="text-align: center; justify-content: center;">尚未收到任何報價。</li>
+                        {% endfor %}
+                    </ul>
                 </div>
             </div>
             
             {% elif project.status == 'in_progress' %}
-            <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white border-0 pt-3">
-                    <h4 class="fw-bold">結案管理</h4>
-                </div>
-                <div class="card-body text-center p-4">
-                    <p class="text-muted">專案正在執行中。如果接案人已交付成果，您可以在此結案。</p>
-                    <button class="btn btn-primary btn-lg mx-2" onclick="updateStatus('completed')">
+            
+            {% if deliverables|length > 0 %}
+            <div class="detail-card">
+                <div class="detail-card-body" style="text-align: center;">
+                    <h3 class="card-header-title" style="text-align: center;">結案管理</h3>
+                    <p>接案人已交付成果。您現在可以接受結案或退件。</p>
+                    <button class="glass-button btn-inline" onclick="updateStatus('completed')">
                         接受結案
                     </button>
-                    <button class="btn btn-danger btn-lg mx-2" onclick="updateStatus('rejected')">
+                    <button class="glass-button btn-danger btn-inline" onclick="updateStatus('rejected')">
                         退件
                     </button>
                 </div>
             </div>
+            {% else %}
+            <div class="detail-card">
+                <div class="detail-card-body" style="text-align: center;">
+                    <h3 class="card-header-title" style="text-align: center;">專案執行中</h3>
+                    <p>正等待接案人上傳結案檔案...</p>
+                </div>
+            </div>
+            {% endif %}
             
             {% elif project.status == 'rejected' %}
-            <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white border-0 pt-3">
-                    <h4 class="fw-bold">專案已退件</h4>
-                </div>
-                <div class="card-body text-center p-4">
-                    <p class="text-muted">您已退回此專案。您可以與接案人溝通後，要求對方重做。</p>
-                    <button class="btn btn-warning btn-lg mx-2" onclick="updateStatus('in_progress')">
-                        要求重做 (退回執行中)
+            <div class="detail-card">
+                <div class="detail-card-body" style="text-align: center;">
+                    <h3 class="card-header-title" style="text-align: center;">專案已退件</h3>
+                    <p>您已退回此專案。您可以與接案人溝通後，要求對方重做。</p>
+                    <button class="glass-button btn-warning btn-inline" onclick="updateStatus('in_progress')">
+                        要求重做
                     </button>
                 </div>
             </div>
             {% endif %}
 
-            {% if project.status != 'open' and deliverables %}
-            <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white border-0 pt-3">
-                    <h4 class="fw-bold">交付成果 ({{ deliverables|length }})</h4>
-                </div>
-                <div class="list-group list-group-flush">
-                {% for file in deliverables %}
-                    <a href="/media/{{ file.file_path.replace('uploads/', '') }}" target="_blank" class="list-group-item list-group-item-action p-3">
-                        檔案 {{ loop.index }} (點擊下載)
-                        <small class="text-muted d-block">
-                            上傳於: {{ file.uploaded_at.strftime('%Y-%m-%d %H:%M') }}
-                        </small>
-                    </a>
-                {% endfor %}
+            {% if project.status != 'open' and deliverables|length > 0 %}
+            <div class="detail-card">
+                <div class="detail-card-body">
+                    <h3 class="card-header-title">交付成果 ({{ deliverables|length }})</h3>
+                    <ul class="item-list">
+                    {% for file in deliverables %}
+                        <li>
+                            <a href="/media/{{ file.file_path.replace('uploads/', '') }}" target="_blank">
+                                <i class="fas fa-download" style="margin-right: 10px;"></i>
+                                檔案 {{ loop.index }} (點擊下載)
+                            </a>
+                            <small>{{ file.uploaded_at.strftime('%Y-%m-%d') }}</small>
+                        </li>
+                    {% endfor %}
+                    </ul>
                 </div>
             </div>
             {% endif %}
@@ -115,49 +138,51 @@
         {% elif user.role == 'contractor' %}
             
             {% if project.status == 'open' %}
-            <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white border-0 pt-3">
-                    <h4 class="fw-bold">提出您的報價</h4>
-                </div>
-                <div class="card-body p-4">
+            <div class="detail-card">
+                <div class="detail-card-body">
+                    <h3 class="card-header-title">提出您的報價</h3>
                     <form id="bid-form">
-                        <div class="mb-3">
-                            <label for="bid_amount" class="form-label fw-medium">報價金額</label>
-                            <input type="number" id="bid_amount" class="form-control" required>
+                        <div class="form-group">
+                            <label for="bid_amount">報價金額</label>
+                            <input type="number" id="bid_amount" class="glass-input" required>
                         </div>
-                        <div class="mb-3">
-                            <label for="proposal_text" class="form-label fw-medium">提案說明 (選填)</label>
-                            <textarea id="proposal_text" class="form-control" rows="3"></textarea>
+                        <div class="form-group">
+                            <label for="proposal_text">提案說明 (選填)</label>
+                            <textarea id="proposal_text" class="glass-input" rows="3"></textarea>
                         </div>
-                        <button type="submit" class="btn btn-primary w-100">送出報價</button>
+                        <button type="submit" class="glass-button">送出報價</button>
                     </form>
                 </div>
             </div>
             
-            {% elif project.status == 'in_progress' and project.selected_contractor_id == user.id %}
-            <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white border-0 pt-3">
-                    <h4 class="fw-bold">上傳結案檔案</h4>
-                </div>
-                <div class="card-body p-4">
+            {% elif (project.status == 'in_progress' or project.status == 'rejected') and project.selected_contractor_id == user.id %}
+            <div class="detail-card">
+                <div class="detail-card-body">
+                    <h3 class="card-header-title">上傳/管理結案檔案</h3>
+                    {% if project.status == 'rejected' %}
+                        <p class="error-message" style="display: block; background-color: rgba(236, 100, 75, 0.15); color: #ffc4c4;">
+                            注意：委託人已退件。請上傳修正後的檔案。
+                        </p>
+                    {% endif %}
                     <form id="upload-form">
-                        <div class="mb-3">
-                            <label for="file" class="form-label fw-medium">選擇檔案</label>
-                            <input type="file" id="file" class="form-control" required>
+                        <div class="form-group">
+                            <label for="file">選擇檔案</label>
+                            <input type="file" id="file" class="glass-input" required style="padding: 12px;">
                         </div>
-                        <button type="submit" class="btn btn-primary w-100">上傳檔案</button>
+                        <button type="submit" class="glass-button">上傳檔案</button>
                     </form>
                     
                     {% if deliverables %}
-                        <hr>
-                        <h5 class="fw-medium">已上傳檔案：</h5>
-                        <ul class="list-group">
+                        <hr style="border-color: rgba(255,255,255,0.1); margin: 2rem 0;">
+                        <h5 class="card-header-title" style="font-size: 1.2rem;">已上傳檔案：</h5>
+                        <ul class="item-list">
                         {% for file in deliverables %}
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <li style="padding: 10px 0;">
                                 <a href="/media/{{ file.file_path.replace('uploads/', '') }}" target="_blank">
-                                    檔案 {{ loop.index }} ({{ file.uploaded_at.strftime('%Y-%m-%d') }})
+                                    <i class="fas fa-file-alt" style="margin-right: 10px;"></i>
+                                    檔案 {{ loop.index }}
                                 </a>
-                                <button class="btn btn-outline-danger btn-sm" onclick="deleteFile({{ file.id }})">
+                                <button class="glass-button btn-danger btn-inline-xs" onclick="deleteFile({{ file.id }})">
                                     刪除
                                 </button>
                             </li>
@@ -170,31 +195,32 @@
 
         {% endif %}
 
-    </div> <div class="col-lg-5">
+    </div> <div class="project-sidebar">
         {% if project.status != 'open' and (user.id == project.client.id or user.id == project.selected_contractor_id) %}
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-white border-0 pt-3">
-                <h4 class="fw-bold">專案溝通</h4>
-            </div>
-            <div class="card-body p-4" style="max-height: 400px; overflow-y: auto;" id="message-list">
-                {% for msg in messages %}
-                    <div class="d-flex mb-3 {% if msg.sender_id == user.id %}flex-row-reverse{% endif %}">
-                        <div class="p-3 rounded" 
-                             style="background-color: {% if msg.sender_id == user.id %}var(--cobalt-blue); color: white;{% else %}#eee; color: #333;{% endif %}">
-                            <strong class="d-block">{{ msg.sender.username }}</strong>
-                            {{ msg.message }}
-                            <small class="d-block opacity-75 mt-1">{{ msg.created_at.strftime('%H:%M') }}</small>
+        <div class="detail-card">
+            <div class="detail-card-body" style="padding: 0;">
+                <h3 class="card-header-title" style="padding: 30px 30px 0 30px;">專案溝通</h3>
+                <div class="chat-box" id="message-list">
+                    {% for msg in messages %}
+                        <div class="chat-message {% if msg.sender_id == user.id %}is-sender{% endif %}">
+                            <div class="message-bubble">
+                                <strong style="color: {% if msg.sender_id == user.id %}rgba(255,255,255,0.7){% else %}rgba(104, 109, 224, 0.9){% endif %}">
+                                    {{ msg.sender.username }}
+                                </strong>
+                                {{ msg.message }}
+                                <small>{{ msg.created_at.strftime('%H:%M') }}</small>
+                            </div>
                         </div>
-                    </div>
-                {% else %}
-                    <p class="text-center text-muted" id="no-message-placeholder">尚未有任何訊息.</p>
-                {% endfor %}
-            </div>
-            <div class="card-footer bg-white border-0 p-3">
-                <form id="message-form" class="d-flex">
-                    <input type="text" id="message-input" class="form-control me-2" placeholder="輸入訊息..." required>
-                    <button type="submit" class="btn btn-primary">傳送</button>
-                </form>
+                    {% else %}
+                        <p style="text-align: center;" id="no-message-placeholder">尚未有任何訊息.</p>
+                    {% endfor %}
+                </div>
+                <div class="detail-card-footer">
+                    <form id="message-form" style="display: flex; gap: 10px;">
+                        <input type="text" id="message-input" class="glass-input" style="width: 100%;" placeholder="輸入訊息..." required>
+                        <button type="submit" class="glass-button btn-inline-sm" style="padding: 10px 20px;">傳送</button>
+                    </form>
+                </div>
             </div>
         </div>
         {% endif %}
@@ -294,18 +320,39 @@
         });
     }
 
-    // --- (接案人) 刪除檔案 [新功能] ---
+    // --- (接案人) 刪除檔案 ---
     async function deleteFile(deliverableId) {
         if (!confirm("確定要永久刪除這個檔案嗎？")) return;
         
         try {
-            // 呼叫我們的新 API 12
             await apiCall(`/api/deliverable/${deliverableId}`, "DELETE", {});
             alert("檔案刪除成功！");
             window.location.reload();
         } catch (error) {
             alert(`刪除失敗: ${error.message}`);
         }
+    }
+
+    // --- (委託人) 刪除專案 ---
+    async function deleteProject() {
+        if (!confirm("【警告】\n\n您確定要永久刪除此專案嗎？\n此操作無法復原。")) return;
+        
+        try {
+            await apiCall(`/api/projects/${PROJECT_ID}`, "DELETE", {});
+            alert("專案已成功刪除。");
+            window.location.href = "/dashboard";
+        } catch (error) {
+            alert(`刪除失敗: ${error.message}`);
+        }
+    }
+    
+    // *** 這是【已修正】的「修改專案」JS 函數 ***
+    function editProject(projectId) {
+        // 全域的 'click' 監聽器 (在 base.html) 會自動播放波紋
+        // 我們只需要延遲跳轉
+        setTimeout(() => {
+            window.location.href = `/project/edit/${projectId}`;
+        }, 300); // 延遲 300 毫秒
     }
 
     // --- (雙方) 溝通：傳送訊息 ---
@@ -330,12 +377,12 @@
                 if (placeholder) placeholder.remove();
                 
                 const msgDiv = document.createElement("div");
-                msgDiv.className = "d-flex mb-3 flex-row-reverse";
+                msgDiv.className = "chat-message is-sender";
                 msgDiv.innerHTML = `
-                    <div class="p-3 rounded" style="background-color: var(--cobalt-blue); color: white;">
-                        <strong class="d-block">${newMsg.sender.username}</strong>
+                    <div class="message-bubble">
+                        <strong style="color: rgba(255,255,255,0.7);">${newMsg.sender.username}</strong>
                         ${newMsg.message}
-                        <small class="d-block opacity-75 mt-1">${new Date(newMsg.created_at).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</small>
+                        <small>${new Date(newMsg.created_at).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</small>
                     </div>`;
                 messageList.appendChild(msgDiv);
                 messageInput.value = "";

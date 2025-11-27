@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskFlow | 專業委託接案平台</title>
+    
+    <link href="{{ url_for('static', path='style.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body style="padding-top: 0;"> <div class="dynamic-bg">
+        <div class="bg-blob blob-1"></div>
+        <div class="bg-blob blob-2"></div>
+    </div>
+
+    <nav class="landing-nav-container">
+        <div class="glass-nav">
+            <a href="/" class="nav-item active" style="font-weight: 600;">
+                <i class="fas fa-project-diagram"></i> TaskFlow
+            </a>
+            <a href="#features" class="nav-item hide-on-small">平台功能</a>
+            <a href="#projects" class="nav-item hide-on-small">探索專案</a>
+            <a href="#help" class="nav-item hide-on-small">幫助中心</a>
+            
+            <a href="/login" class="nav-item" style="background: rgba(255, 255, 255, 0.1);">登入</a>
+            <a href="/register" class="nav-item" style="background: rgba(104, 109, 224, 0.3); color: white;">免費註冊</a>
+        </div>
+    </nav>
+
+    <section class="landing-section hero-section">
+        <div class="landing-container">
+            <div class="landing-grid">
+                <div class="platform-intro">
+                    <h1>專業委託接案平台</h1>
+                    <p>連接全球優秀人才與專案機會，無論您是委託人還是接案專家，都能在這裡找到完美的合作夥伴。</p>
+                    <div class="hero-buttons">
+                        <a href="/register" class="glass-button btn-success" style="width: auto;">
+                            <i class="fas fa-rocket" style="margin-right: 8px;"></i>
+                            免費註冊
+                        </a>
+                        <a href="#projects" class="glass-button" style="width: auto; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.2);">
+                            <i class="fas fa-search" style="margin-right: 8px;"></i>
+                            尋找專案
+                        </a>
+                    </div>
+                </div>
+                <div class="effect-card" style="padding: 40px;">
+                    <h3 class="card-title" style="text-align: center;"> <i class="fas fa-check-circle" style="color: #2dce89;"></i> 流程安全保證</h3>
+                    <p class="card-description" style="text-align: center;">
+                        從建立專案、安全溝通、檔案交付到結案管理，我們提供一站式服務，確保您的專案順利推進。
+                    </p>
+                    <div class="glass-button" style="width: 100%; text-align: center; cursor: default; background: rgba(45, 206, 137, 0.2);">
+                        完全符合您的需求
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="landing-section features-section">
+        <div class="landing-container">
+            <div class="section-header">
+                <h2 class="section-title">平台特色功能</h2>
+                <p class="section-subtitle">專為委託人與接案人設計的完整工作流程</p>
+            </div>
+            
+            <div class="effects-grid">
+                <div class="effect-card">
+                    <h3 class="card-title"><i class="fas fa-user-plus" style="color: #686de0;"></i> 帳號管理</h3>
+                    <p class="card-description">完整的註冊、登入系統，支持委託人與接案人兩種身份。</p>
+                </div>
+                
+                <div class="effect-card">
+                    <h3 class="card-title"><i class="fas fa-tasks" style="color: #ffc107;"></i> 專案管理</h3>
+                    <p class="card-description">建立、修改、取消專案。完整的投標、決標與結案流程。</p>
+                </div>
+                
+                <div class="effect-card">
+                    <h3 class="card-title"><i class="fas fa-comments" style="color: #06d6a0;"></i> 即時溝通</h3>
+                    <p class="card-description">內建液態玻璃聊天室，方便執行過程中的即時溝通。</p>
+                </div>
+                
+                <div class="effect-card">
+                    <h3 class="card-title"><i class="fas fa-file-upload" style="color: #ec644b;"></i> 安全交付</h3>
+                    <p class="card-description">支援檔案上傳、下載與刪除，確保交付成果安全無虞。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <section id="projects" class="landing-section">
+        <div class="landing-container">
+            <div class="section-header">
+                <h2 class="section-title">熱門委託專案</h2>
+                <p class="section-subtitle">探索最新的專案機會</p>
+            </div>
+            
+            <div class="effects-grid">
+                <a href="/login" class="effect-card">
+                    <h3 class="card-title">企業官方網站設計</h3>
+                    <p class="card-description">為科技公司設計現代化官方網站，需要響應式設計...</p>
+                    <div class="card-footer">
+                        <span style="color: #ec644b; font-weight: 600; font-size: 1.2rem;">$25,000</span>
+                        <small>14 天</small>
+                    </div>
+                </a>
+                <a href="/login" class="effect-card">
+                    <h3 class="card-title">行動應用程式開發</h3>
+                    <p class="card-description">開發一款健身追蹤應用程式，需要包含用戶註冊、運動記錄...</p>
+                    <div class="card-footer">
+                        <span style="color: #ec644b; font-weight: 600; font-size: 1.2rem;">$80,000</span>
+                        <small>60 天</small>
+                    </div>
+                </a>
+                <a href="/login" class="effect-card">
+                    <h3 class="card-title">品牌標誌設計</h3>
+                    <p class="card-description">為新創咖啡品牌設計標誌，希望傳達溫暖、專業和現代感...</p>
+                    <div class="card-footer">
+                        <span style="color: #ec644b; font-weight: 600; font-size: 1.2rem;">$15,000</span>
+                        <small>10 天</small>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <footer id="help" class="footer-section">
+        <div class="footer-content">
+            <div class="footer-column">
+                <h3>TaskFlow</h3>
+                <p>專業委託接案平台，連接全球優秀人才與專案機會。</p>
+            </div>
+            <div class="footer-column">
+                <h3>快速連結</h3>
+                <div class="footer-links">
+                    <a href="/">首頁</a>
+                    <a href="#features">平台功能</a>
+                    <a href="/register">免費註冊</a>
+                </div>
+            </div>
+            <div class="footer-column">
+                <h3>支援 (幫助中心)</h3>
+                <div class="footer-links">
+                    <a href="#">常見問題</a>
+                    <a href="#">隱私政策</a>
+                    <a href="#">服務條款</a>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2025 TaskFlow (由鄧傑笙打造)</p>
+        </div>
+    </footer>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- 液態波紋動畫 ---
+            const buttons = document.querySelectorAll('.glass-button');
+            function createRippleEffect(e, button) {
+                const ripple = document.createElement('div');
+                ripple.classList.add('ripple');
+                const rect = button.getBoundingClientRect();
+                const size = Math.max(rect.width, rect.height) * 2;
+                const x = e.clientX - rect.left - size / 2;
+                const y = e.clientY - rect.top - size / 2;
+                ripple.style.width = size + 'px';
+                ripple.style.height = size + 'px';
+                ripple.style.left = x + 'px';
+                ripple.style.top = y + 'px';
+                button.appendChild(ripple);
+                setTimeout(() => {
+                    ripple.remove();
+                }, 600);
+            }
+            buttons.forEach(button => {
+                button.addEventListener('click', function(e) {
+                    createRippleEffect(e, this);
+                    const href = this.getAttribute('href');
+                    if (this.tagName === 'A' && href && !href.startsWith('#')) {
+                        e.preventDefault(); 
+                        const targetUrl = href;
+                        setTimeout(() => {
+                            window.location.href = targetUrl;
+                        }, 300);
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

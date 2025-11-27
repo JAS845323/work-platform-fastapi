@@ -1,102 +1,173 @@
 {% extends "base.html" %}
 
-{% block title %}首頁 - 工作委託平台{% endblock %}
+{% block title %}首頁 - TaskFlow{% endblock %}
 
 {% block content %}
 
-{% if user.role == 'client' %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="mb-0 fw-bold" style="color: #002c6a;">我的專案 (首頁)</h2>
-    <a href="/project/create" class="btn btn-primary fw-bold">
-        + 建立新專案
-    </a>
-</div>
+<div class="project-grid">
 
-<div class="list-group shadow-sm">
-    {% for project in my_projects %}
-    <a href="/project/{{ project.id }}" class="list-group-item list-group-item-action p-3">
-        <div class="d-flex w-100 justify-content-between">
-            <h5 class="mb-1 fw-bold">{{ project.title }}</h5>
-            <small class="text-muted">{{ project.created_at.strftime('%Y-%m-%d') }}</small>
+    <div class="project-main-content">
+        {% if user.role == 'client' %}
+            <div class="subheader-container">
+                <div>
+                    <h1 class="page-title">我的專案</h1>
+                    <p class="page-subtitle">您目前正在執行或已建立的專案。</p>
+                </div>
+                <a href="/project/create" class="glass-button create-project-btn">
+                    <i class="fas fa-plus"></i> 建立新專案
+                </a>
+            </div>
+
+            <div class="effects-grid">
+                {% for project in my_projects %}
+                <a href="/project/{{ project.id }}" class="effect-card">
+                    <h3 class="card-title">{{ project.title }}</h3>
+                    <p class="card-description">
+                        {{ project.description | truncate(100) }}
+                    </p>
+                    <div class="card-footer">
+                        <span>
+                            {% if project.status == 'open' %}
+                                <span style="color: #2dce89;">● 開放中</span>
+                            {% elif project.status == 'in_progress' %}
+                                <span style="color: #ffc107;">● 執行中</span>
+                            {% elif project.status == 'completed' %}
+                                <span style="color: #8898aa;">● 已結案</span>
+                            {% else %}
+                                <span style="color: #ec644b;">● 已退件</span>
+                            {% endif %}
+                        </span>
+                        <small>{{ project.created_at.strftime('%Y-%m-%d') }}</small>
+                    </div>
+                </a>
+                {% else %}
+                <div class="effect-card" style="grid-column: 1 / -1;">
+                    <p class="card-description" style="text-align: center; margin-bottom: 0;">
+                        您尚未建立任何專案。
+                    </p>
+                </div>
+                {% endfor %}
+            </div>
+
+        {% else %}
+            <div class="header-container">
+                <h1 class="page-title">我承接的專案</h1>
+            </div>
+            <p class="page-subtitle">您目前正在執行或已完成的專案。</p>
+            <div class="effects-grid mb-5">
+                {% for project in my_projects %}
+                <a href="/project/{{ project.id }}" class="effect-card">
+                    <h3 class="card-title">{{ project.title }}</h3>
+                    <p class="card-description">
+                        {{ project.description | truncate(100) }}
+                    </p>
+                    <div class="card-footer">
+                        <span>
+                            {% if project.status == 'in_progress' %}
+                                <span style="color: #ffc107;">● 執行中</span>
+                            {% elif project.status == 'completed' %}
+                                <span style="color: #8898aa;">● 已結案</span>
+                            {% elif project.status == 'rejected' %}
+                                <span style="color: #ec644b;">● 已退件</span>
+                            {% endif %}
+                        </span>
+                        <small>發布者: {{ project.client.username }}</small>
+                    </div>
+                </a>
+                {% else %}
+                <div class="effect-card" style="grid-column: 1 / -1;">
+                    <p class="card-description" style="text-align: center; margin-bottom: 0;">
+                        您尚未承接任何專案。
+                    </p>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="header-container">
+                <h1 class="page-title">開放中的專案</h1>
+            </div>
+            <p class="page-subtitle">這是目前市場上所有開放投標的專案。</p>
+            <div class="effects-grid">
+                {% for project in open_projects %}
+                <a href="/project/{{ project.id }}" class="effect-card">
+                    <h3 class="card-title">{{ project.title }}</h3>
+                    <p class="card-description">
+                        {{ project.description | truncate(100) }}
+                    </p>
+                    <div class="card-footer">
+                        <span style="color: rgba(104, 109, 224, 0.8);">
+                            發布者: {{ project.client.username }}
+                        </span>
+                        <small>{{ project.created_at.strftime('%Y-%m-%d') }}</small>
+                    </div>
+                </a>
+                {% else %}
+                <div class="effect-card" style="grid-column: 1 / -1;">
+                    <p class="card-description" style="text-align: center; margin-bottom: 0;">
+                        目前沒有開放中的專案。
+                    </p>
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+    </div> <div class="project-sidebar">
+
+        <div class="detail-card">
+            <div class="detail-card-body">
+                <div class="card-header-title">
+                    <span><i class="fas fa-envelope" style="margin-right: 10px; color: rgba(255,255,255,0.5);"></i> 最近訊息</span>
+                    <a href="/dashboard" class="refresh-btn">
+                        <i class="fas fa-sync-alt"></i>
+                    </a>
+                </div>
+                <div class="message-list">
+                    {% for msg in recent_messages %}
+                    <a href="/project/{{ msg.project.id }}" class="message-list-item {% if not msg.is_read %}unread{% endif %}">
+                        <div class="message-header">
+                            {{ msg.sender.username }} - {{ msg.project.title | truncate(15) }}
+                        </div>
+                        <p class="message-preview">
+                            {{ msg.message | truncate(30) }}
+                        </p>
+                        <small class="message-time">{{ msg.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                    </a>
+                    {% else %}
+                    <div style="text-align: center; padding: 20px 0;">沒有新的訊息。</div>
+                    {% endfor %}
+                </div>
+            </div>
         </div>
-        <p class="mb-1 text-muted">
-            {{ project.description | truncate(100) }}
-        </p>
-        <small>
-            {% if project.status == 'open' %}
-                <span class="badge bg-success">開放中</span>
-            {% elif project.status == 'in_progress' %}
-                <span class="badge bg-warning text-dark">執行中</span>
-            {% elif project.status == 'completed' %}
-                <span class="badge bg-secondary">已結案</span>
-            {% else %}
-                <span class="badge bg-danger">已退件</span>
-            {% endif %}
-        </small>
-    </a>
-    {% else %}
-    <div class="list-group-item p-3">
-        <p class="mb-0 text-center text-muted">您尚未建立任何專案。</p>
-    </div>
-    {% endfor %}
-</div>
 
-
-{% else %}
-
-<div class="mb-4">
-    <h2 class="fw-bold" style="color: #002c6a;">我承接的專案</h2>
-    <p class="text-muted">您目前正在執行或已完成的專案。</p>
-</div>
-<div class="list-group shadow-sm mb-5">
-    {% for project in my_projects %}
-    <a href="/project/{{ project.id }}" class="list-group-item list-group-item-action p-3">
-        <div class="d-flex w-100 justify-content-between">
-            <h5 class="mb-1 fw-bold">{{ project.title }}</h5>
-            {% if project.status == 'in_progress' %}
-                <span class="badge bg-warning text-dark">執行中</span>
-            {% elif project.status == 'completed' %}
-                <span class="badge bg-secondary">已結案</span>
-            {% elif project.status == 'rejected' %}
-                <span class="badge bg-danger">已退件</span>
-            {% endif %}
+        {% if user.role == 'contractor' and stats %}
+        <div class="detail-card">
+            <div class="detail-card-body">
+                <div class="card-header-title">
+                    <span><i class="fas fa-chart-bar" style="margin-right: 10px; color: rgba(255,255,255,0.5);"></i> 數據統計</span>
+                    <a href="/dashboard" class="refresh-btn">
+                        <i class="fas fa-sync-alt"></i>
+                    </a>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value">{{ stats.in_progress }}</div>
+                        <div class="stat-label">進行中專案</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">{{ stats.completed }}</div>
+                        <div class="stat-label">已完成專案</div>
+                    </div>
+                    <div class="stat-item full-width">
+                        <div class="stat-value">{{ stats.open }}</div>
+                        <div class="stat-label">等待報價</div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <p class="mb-1 text-muted">{{ project.description | truncate(100) }}</p>
-        <small class="text-primary fw-medium">
-            發布者: {{ project.client.username }}
-        </small>
-    </a>
-    {% else %}
-    <div class="list-group-item p-3 text-center text-muted">
-        您尚未承接任何專案。
-    </div>
-    {% endfor %}
-</div>
+        {% endif %}
 
-<div class="mb-4">
-    <h2 class="fw-bold" style="color: #002c6a;">開放中的專案</h2>
-    <p class="text-muted">這是目前市場上所有開放投標的專案。</p>
-</div>
-<div class="list-group shadow-sm">
-    {% for project in open_projects %}
-    <a href="/project/{{ project.id }}" class="list-group-item list-group-item-action p-3">
-        <div class="d-flex w-100 justify-content-between">
-            <h5 class="mb-1 fw-bold">{{ project.title }}</h5>
-            <small class="text-muted">{{ project.created_at.strftime('%Y-%m-%d') }}</small>
-        </div>
-        <p class="mb-1 text-muted">
-            {{ project.description | truncate(100) }}
-        </p>
-        <small class="text-primary fw-medium">
-            發布者: {{ project.client.username }}
-        </small>
-    </a>
-    {% else %}
-    <div class="list-group-item p-3 text-center text-muted">
-        目前沒有開放中的專案。
-    </div>
-    {% endfor %}
-</div>
+    </div> </div> {% endblock %}
 
-{% endif %}
+
+{% block scripts %}
 {% endblock %}

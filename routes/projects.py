@@ -1,22 +1,20 @@
 # routes/projects.py
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from typing import List # 用於回傳 "列表"
+from sqlalchemy.orm import Session, joinedload # 確保 joinedload 已匯入
+from typing import List
 
 # 匯入我們建立的東西
 from db.db import get_db
 from db import models as db_models
 from models import project as pydantic_models
-from models import communication as pydantic_comm_models # 匯入溝通模型
-from models import bid as pydantic_bid_models # 匯入 Bid 模型
-# 匯入角色檢查器
+from models import communication as pydantic_comm_models
+from models import bid as pydantic_bid_models
 from auth.security import get_current_client, get_current_contractor, get_current_user 
 
-# 建立一個新的 APIRouter
 router = APIRouter()
 
-# --- API 1: 建立專案 (委託人功能) ---
+# --- API 1: 建立專案 ---
 @router.post("/", response_model=pydantic_models.Project)
 def create_project(
     project: pydantic_models.ProjectCreate,
@@ -33,18 +31,18 @@ def create_project(
     db.refresh(db_project)
     return db_project
 
-# --- API 2: 查詢/觀看委託專案 (接案人功能) ---
+# --- API 2: 查詢開放專案 ---
 @router.get("/open", response_model=List[pydantic_models.Project])
 def get_open_projects(
     db: Session = Depends(get_db),
     current_contractor: db_models.User = Depends(get_current_contractor)
 ):
     projects = db.query(db_models.Project).options(
-        joinedload(db_models.Project.client) # 預先載入 client
+        joinedload(db_models.Project.client)
     ).filter(db_models.Project.status == 'open').all()
     return projects
 
-# --- API 3: 提出承包意願(含報價) (接案人功能) ---
+# --- API 3: 提出報價 ---
 @router.post("/{project_id}/bid", response_model=pydantic_bid_models.Bid)
 def create_bid_for_project(
     project_id: int,
@@ -77,23 +75,24 @@ def create_bid_for_project(
     db.refresh(db_bid)
     return db_bid
 
-# --- API 4: 查詢某專案的所有投標 (委託人功能) ---
+# --- API 4: 查詢投標 ---
 @router.get("/{project_id}/bids", response_model=List[pydantic_bid_models.Bid])
 def get_bids_for_project(
     project_id: int,
     db: Session = Depends(get_db),
     current_client: db_models.User = Depends(get_current_client)
 ):
-    db_project = db.query(db_models.Project).filter(
+    db_project = db.query(db_models.Project).options(
+        joinedload(db_models.Project.bids)
+    ).filter(
         db_models.Project.id == project_id,
         db_models.Project.client_id == current_client.id
     ).first()
     if not db_project:
         raise HTTPException(status_code=404, detail="Project not found or you do not own this project")
-        
     return db_project.bids
 
-# --- API 5: 選擇委託對象 (委託人功能) ---
+# --- API 5: 選擇委託對象 ---
 @router.post("/{project_id}/select_bid/{bid_id}", response_model=pydantic_models.Project)
 def select_bid_for_project(
     project_id: int,
@@ -122,23 +121,27 @@ def select_bid_for_project(
     db.refresh(db_project)
     return db_project
 
-# --- API 7: 歷史專案列表 (雙方功能) ---
+# --- API 7: 歷史專案列表 ---
 @router.get("/mine", response_model=List[pydantic_models.Project])
 def get_my_projects(
     db: Session = Depends(get_db),
     current_user: db_models.User = Depends(get_current_user)
 ):
     if current_user.role == 'client':
-        projects = db.query(db_models.Project).filter(
+        projects = db.query(db_models.Project).options(
+            joinedload(db_models.Project.client) # 預載 client
+        ).filter(
             db_models.Project.client_id == current_user.id
         ).all()
     else:
-        projects = db.query(db_models.Project).filter(
+        projects = db.query(db_models.Project).options(
+            joinedload(db_models.Project.client) # 預載 client
+        ).filter(
             db_models.Project.selected_contractor_id == current_user.id
         ).all()
     return projects
 
-# --- API 8: 修改專案需求 (委託人功能) ---
+# --- API 8: 修改專案需求 ---
 @router.put("/{project_id}", response_model=pydantic_models.Project)
 def update_project(
     project_id: int,
@@ -146,7 +149,9 @@ def update_project(
     db: Session = Depends(get_db),
     current_client: db_models.User = Depends(get_current_client)
 ):
-    db_project = db.query(db_models.Project).filter(
+    db_project = db.query(db_models.Project).options(
+        joinedload(db_models.Project.client) # 預載 client
+    ).filter(
         db_models.Project.id == project_id,
         db_models.Project.client_id == current_client.id
     ).first()
@@ -162,8 +167,7 @@ def update_project(
     db.refresh(db_project)
     return db_project
 
-# --- API 9: 結案管理 (接受/退件/重啟) (委託人功能) ---
-# *** 這是修正後的邏輯 ***
+# --- API 9: 結案管理 ---
 @router.post("/{project_id}/status", response_model=pydantic_models.Project)
 def update_project_status(
     project_id: int,
@@ -173,7 +177,6 @@ def update_project_status(
 ):
     new_status = status_update.status
     
-    # 1. 驗證專案存在且屬於此委託人
     db_project = db.query(db_models.Project).filter(
         db_models.Project.id == project_id,
         db_models.Project.client_id == current_client.id
@@ -183,27 +186,23 @@ def update_project_status(
         raise HTTPException(status_code=404, detail="Project not found or not owned by you")
 
     current_status = db_project.status
-
-    # 2. 定義合法的狀態轉換規則
     allowed_transitions = {
-        'in_progress': ['completed', 'rejected'], # 執行中 -> 可 結案 或 退件
-        'rejected': ['in_progress']               # 退件 -> 可 退回執行中
+        'in_progress': ['completed', 'rejected'],
+        'rejected': ['in_progress']
     }
 
     if current_status in allowed_transitions and new_status in allowed_transitions[current_status]:
-        # 合法轉換
         db_project.status = new_status
         db.commit()
         db.refresh(db_project)
         return db_project
     else:
-        # 非法轉換
         raise HTTPException(
             status_code=400, 
             detail=f"Invalid status transition from '{current_status}' to '{new_status}'"
         )
 
-# --- API 10: 執行過程溝通 (傳送訊息) (雙方功能) ---
+# --- API 10: 傳送訊息 ---
 @router.post("/{project_id}/messages", response_model=pydantic_comm_models.Message)
 def create_message_for_project(
     project_id: int,
@@ -231,7 +230,7 @@ def create_message_for_project(
     db.refresh(db_message)
     return db_message
 
-# --- API 11: 執行過程溝通 (讀取訊息) (雙方功能) ---
+# --- API 11: 讀取訊息 ---
 @router.get("/{project_id}/messages", response_model=List[pydantic_comm_models.Message])
 def get_messages_for_project(
     project_id: int,
@@ -251,3 +250,33 @@ def get_messages_for_project(
         
     messages = sorted(db_project.communications, key=lambda m: m.created_at)
     return messages
+
+# --- API 13: 取消(刪除)專案 (*** 新功能 ***) ---
+@router.delete("/{project_id}", status_code=200)
+def delete_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_client: db_models.User = Depends(get_current_client)
+):
+    # 1. 驗證專案
+    db_project = db.query(db_models.Project).filter(
+        db_models.Project.id == project_id,
+        db_models.Project.client_id == current_client.id
+    ).first()
+
+    if not db_project:
+        raise HTTPException(status_code=404, detail="Project not found or not owned by you")
+
+    # 2. 只有 'open' 狀態的專案才能被刪除
+    if db_project.status != 'open':
+        raise HTTPException(status_code=400, detail="Only 'open' projects can be deleted. This project is already in progress.")
+
+    # 3. 刪除 (由於我們設定了 CASCADE ondelete，相關的 bids, communications 等會自動刪除)
+    try:
+        db.delete(db_project)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Could not delete project: {e}")
+
+    return {"message": "Project deleted successfully"}

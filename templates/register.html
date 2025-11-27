@@ -1,43 +1,55 @@
 {% extends "base.html" %}
 
-{% block title %}註冊新帳戶{% endblock %}
+{% block title %}註冊 - TaskFlow{% endblock %}
 
 {% block content %}
-<div class="card shadow-lg border-0">
-    <div class="card-body p-4 p-md-5">
-        <h2 class="card-title text-center fw-bold mb-4" style="color: #002c6a;">建立新帳戶</h2>
+<div class="landing-grid" style="max-width: 1000px; margin: 0 auto;">
 
-        <div id="error-message" class="alert alert-danger d-none" role="alert"></div>
+    <div class="platform-intro">
+        <h1>建立新帳戶</h1>
+        <p>加入 TaskFlow，開始您的專業接案之旅，
+           或立即發布您的專案需求，找到頂尖人才。
+        </p>
+        <ul class="feature-list">
+            <li><i class="fas fa-check"></i> 快速註冊，立即開始</li>
+            <li><i class="fas fa-lock"></i> 安全加密，保障隱私</li>
+            <li><i class="fas fa-users"></i> 專業的委託人與接案人社群</li>
+        </ul>
+    </div>
+    
+    <div class="glass-card">
+        <h2>建立新帳戶</h2>
+        
+        <div id="error-message" class="error-message"></div>
         
         <form id="register-form">
-            <div class="mb-3">
-                <label for="username" class="form-label fw-medium">使用者名稱</label>
-                <input type="text" id="username" name="username" class="form-control form-control-lg" required>
+            <div class="form-group">
+                <label for="username">使用者名稱</label>
+                <input type="text" id="username" name="username" class="glass-input" required>
             </div>
-            <div class="mb-3">
-                <label for="email" class="form-label fw-medium">Email</label>
-                <input type="email" id="email" name="email" class="form-control form-control-lg" required>
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" class="glass-input" required>
             </div>
-            <div class="mb-3">
-                <label for="password" class="form-label fw-medium">密碼</label>
-                <input type="password" id="password" name="password" class="form-control form-control-lg" required>
+            <div class="form-group">
+                <label for="password">密碼</label>
+                <input type="password" id="password" name="password" class="glass-input" required>
             </div>
-            <div class="mb-4">
-                <label for="role" class="form-label fw-medium">您的身分</label>
-                <select id="role" name="role" class="form-select form-select-lg">
-                    <option value="client">我是委託人 (發布專案)</option>
-                    <option value="contractor">我是接案人 (承接專案)</option>
+            <div class="form-group">
+                <label for="role">您的身分</label>
+                <select id="role" name="role" class="glass-input">
+                    <option value="client" style="color: black;">我是委託人 (發布專案)</option>
+                    <option value="contractor" style="color: black;">我是接案人 (承接專案)</option>
                 </select>
             </div>
-            <div class="d-grid">
-                <button type="submit" class="btn btn-primary btn-lg fw-bold">註冊</button>
-            </div>
+            <button type="submit" class="glass-button">註冊</button>
         </form>
         
-        <div class="text-center mt-4 form-footer">
-            已經有帳戶了？ <a href="/">返回登入</a>
+        <div class="form-footer">
+            已經有帳戶了？ <a href="/login">返回登入</a>
         </div>
     </div>
+    
 </div>
 {% endblock %}
 
@@ -66,15 +78,15 @@
             });
 
             if (response.ok) {
-                window.location.href = "/?registered=true";
+                window.location.href = "/login?registered=true";
             } else {
                 const data = await response.json();
                 errorMessage.textContent = data.detail || "註冊失敗。";
-                errorMessage.classList.remove("d-none");
+                errorMessage.style.display = "block";
             }
         } catch (error) {
             errorMessage.textContent = "發生網路錯誤，請稍後再試。";
-            errorMessage.classList.remove("d-none");
+            errorMessage.style.display = "block";
         }
     });
 </script>
