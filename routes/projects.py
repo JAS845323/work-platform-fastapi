@@ -1,16 +1,21 @@
 # routes/projects.py
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session, joinedload # 確保 joinedload 已匯入
+import os
+import shutil
+import uuid
+from datetime import datetime
 from typing import List
+from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 
-# 匯入我們建立的東西
+# 匯入資料庫與模型
 from db.db import get_db
 from db import models as db_models
 from models import project as pydantic_models
 from models import communication as pydantic_comm_models
 from models import bid as pydantic_bid_models
-from auth.security import get_current_client, get_current_contractor, get_current_user 
+from auth.security import get_current_client, get_current_contractor, get_current_user
 
 router = APIRouter()
 
@@ -24,7 +29,8 @@ def create_project(
     db_project = db_models.Project(
         title=project.title,
         description=project.description,
-        client_id=current_client.id
+        client_id=current_client.id,
+        deadline=project.deadline # [延伸一] 寫入截止時間
     )
     db.add(db_project)
     db.commit()
@@ -42,21 +48,30 @@ def get_open_projects(
     ).filter(db_models.Project.status == 'open').all()
     return projects
 
-# --- API 3: 提出報價 ---
+# --- API 3: 提出報價 (支援 PDF 上傳與限時檢查) ---
 @router.post("/{project_id}/bid", response_model=pydantic_bid_models.Bid)
 def create_bid_for_project(
     project_id: int,
-    bid: pydantic_bid_models.BidCreate,
+    bid_amount: float = Form(...),
+    proposal_text: str | None = Form(None),
+    file: UploadFile = File(...), # [延伸一] 必傳 PDF
     db: Session = Depends(get_db),
     current_contractor: db_models.User = Depends(get_current_contractor)
 ):
+    # 1. 檢查專案
     db_project = db.query(db_models.Project).filter(
         db_models.Project.id == project_id,
         db_models.Project.status == 'open'
     ).first()
+    
     if not db_project:
         raise HTTPException(status_code=404, detail="Project not found or not open for bidding")
 
+    # [延伸一] 限時檢查
+    if db_project.deadline and datetime.now() > db_project.deadline:
+        raise HTTPException(status_code=400, detail="Bidding deadline has passed (競標已截止)")
+
+    # 2. 檢查重複投標
     existing_bid = db.query(db_models.Bid).filter(
         db_models.Bid.project_id == project_id,
         db_models.Bid.contractor_id == current_contractor.id
@@ -64,12 +79,33 @@ def create_bid_for_project(
     if existing_bid:
         raise HTTPException(status_code=400, detail="You have already placed a bid on this project")
 
+    # [延伸一] 3. 檢查 PDF
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed for proposals")
+
+    # [延伸一] 4. 儲存檔案
+    UPLOAD_DIRECTORY = "uploads"
+    if not os.path.exists(UPLOAD_DIRECTORY):
+        os.makedirs(UPLOAD_DIRECTORY)
+        
+    safe_filename = f"{uuid.uuid4()}.pdf"
+    file_path = os.path.join(UPLOAD_DIRECTORY, safe_filename)
+
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    finally:
+        file.file.close()
+
+    # 5. 寫入 DB
     db_bid = db_models.Bid(
         project_id=project_id,
         contractor_id=current_contractor.id,
-        bid_amount=bid.bid_amount,
-        proposal_text=bid.proposal_text
+        bid_amount=bid_amount,
+        proposal_text=proposal_text,
+        proposal_file_path=safe_filename
     )
+    
     db.add(db_bid)
     db.commit()
     db.refresh(db_bid)
@@ -105,8 +141,13 @@ def select_bid_for_project(
         db_models.Project.client_id == current_client.id,
         db_models.Project.status == 'open'
     ).first()
+    
     if not db_project:
         raise HTTPException(status_code=404, detail="Project not found, not owned by you, or already in progress")
+
+    # [延伸一] 檢查是否到達截止時間 (未截止不能決標)
+    if db_project.deadline and datetime.now() < db_project.deadline:
+        raise HTTPException(status_code=400, detail="Cannot select bid before deadline (競標尚未截止，無法決標)")
 
     db_bid = db.query(db_models.Bid).filter(
         db_models.Bid.id == bid_id,
@@ -121,7 +162,7 @@ def select_bid_for_project(
     db.refresh(db_project)
     return db_project
 
-# --- API 7: 歷史專案列表 ---
+# --- API 7: 歷史專案 ---
 @router.get("/mine", response_model=List[pydantic_models.Project])
 def get_my_projects(
     db: Session = Depends(get_db),
@@ -129,19 +170,19 @@ def get_my_projects(
 ):
     if current_user.role == 'client':
         projects = db.query(db_models.Project).options(
-            joinedload(db_models.Project.client) # 預載 client
+            joinedload(db_models.Project.client) 
         ).filter(
             db_models.Project.client_id == current_user.id
         ).all()
     else:
         projects = db.query(db_models.Project).options(
-            joinedload(db_models.Project.client) # 預載 client
+            joinedload(db_models.Project.client) 
         ).filter(
             db_models.Project.selected_contractor_id == current_user.id
         ).all()
     return projects
 
-# --- API 8: 修改專案需求 ---
+# --- API 8: 修改專案 ---
 @router.put("/{project_id}", response_model=pydantic_models.Project)
 def update_project(
     project_id: int,
@@ -150,7 +191,7 @@ def update_project(
     current_client: db_models.User = Depends(get_current_client)
 ):
     db_project = db.query(db_models.Project).options(
-        joinedload(db_models.Project.client) # 預載 client
+        joinedload(db_models.Project.client)
     ).filter(
         db_models.Project.id == project_id,
         db_models.Project.client_id == current_client.id
@@ -159,7 +200,7 @@ def update_project(
         raise HTTPException(status_code=404, detail="Project not found or not owned by you")
 
     if db_project.status != 'open':
-        raise HTTPException(status_code=400, detail="Only projects with 'open' status can be updated")
+        raise HTTPException(status_code=400, detail="Only 'open' projects can be updated")
         
     db_project.title = project_update.title
     db_project.description = project_update.description
@@ -167,7 +208,7 @@ def update_project(
     db.refresh(db_project)
     return db_project
 
-# --- API 9: 結案管理 ---
+# --- API 9: 結案管理 (含 Issue 檢查) ---
 @router.post("/{project_id}/status", response_model=pydantic_models.Project)
 def update_project_status(
     project_id: int,
@@ -176,7 +217,6 @@ def update_project_status(
     current_client: db_models.User = Depends(get_current_client)
 ):
     new_status = status_update.status
-    
     db_project = db.query(db_models.Project).filter(
         db_models.Project.id == project_id,
         db_models.Project.client_id == current_client.id
@@ -192,15 +232,21 @@ def update_project_status(
     }
 
     if current_status in allowed_transitions and new_status in allowed_transitions[current_status]:
+        # [延伸三] 結案前檢查 Issue Tracker
+        if new_status == 'completed':
+            open_issues = db.query(db_models.Issue).filter(
+                db_models.Issue.project_id == project_id,
+                db_models.Issue.status == 'open'
+            ).count()
+            if open_issues > 0:
+                raise HTTPException(status_code=400, detail=f"Cannot complete project with {open_issues} open issues.")
+        
         db_project.status = new_status
         db.commit()
         db.refresh(db_project)
         return db_project
     else:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Invalid status transition from '{current_status}' to '{new_status}'"
-        )
+        raise HTTPException(status_code=400, detail=f"Invalid status transition from '{current_status}' to '{new_status}'")
 
 # --- API 10: 傳送訊息 ---
 @router.post("/{project_id}/messages", response_model=pydantic_comm_models.Message)
@@ -210,9 +256,7 @@ def create_message_for_project(
     db: Session = Depends(get_db),
     current_user: db_models.User = Depends(get_current_user)
 ):
-    db_project = db.query(db_models.Project).filter(
-        db_models.Project.id == project_id
-    ).first()
+    db_project = db.query(db_models.Project).filter(db_models.Project.id == project_id).first()
     if not db_project:
         raise HTTPException(status_code=404, detail="Project not found")
         
@@ -243,7 +287,6 @@ def get_messages_for_project(
     
     if not db_project:
         raise HTTPException(status_code=404, detail="Project not found")
-        
     if (db_project.client_id != current_user.id and 
         db_project.selected_contractor_id != current_user.id):
         raise HTTPException(status_code=403, detail="You are not part of this project")
@@ -251,14 +294,13 @@ def get_messages_for_project(
     messages = sorted(db_project.communications, key=lambda m: m.created_at)
     return messages
 
-# --- API 13: 取消(刪除)專案 (*** 新功能 ***) ---
+# --- API 13: 刪除專案 ---
 @router.delete("/{project_id}", status_code=200)
 def delete_project(
     project_id: int,
     db: Session = Depends(get_db),
     current_client: db_models.User = Depends(get_current_client)
 ):
-    # 1. 驗證專案
     db_project = db.query(db_models.Project).filter(
         db_models.Project.id == project_id,
         db_models.Project.client_id == current_client.id
@@ -267,11 +309,9 @@ def delete_project(
     if not db_project:
         raise HTTPException(status_code=404, detail="Project not found or not owned by you")
 
-    # 2. 只有 'open' 狀態的專案才能被刪除
     if db_project.status != 'open':
-        raise HTTPException(status_code=400, detail="Only 'open' projects can be deleted. This project is already in progress.")
+        raise HTTPException(status_code=400, detail="Only 'open' projects can be deleted.")
 
-    # 3. 刪除 (由於我們設定了 CASCADE ondelete，相關的 bids, communications 等會自動刪除)
     try:
         db.delete(db_project)
         db.commit()
@@ -280,3 +320,130 @@ def delete_project(
         raise HTTPException(status_code=500, detail=f"Could not delete project: {e}")
 
     return {"message": "Project deleted successfully"}
+
+# --- API 14: 評價系統 [延伸二] ---
+@router.post("/{project_id}/rate", response_model=pydantic_models.Rating)
+def submit_rating(
+    project_id: int,
+    rating: pydantic_models.RatingCreate,
+    db: Session = Depends(get_db),
+    current_user: db_models.User = Depends(get_current_user)
+):
+    db_project = db.query(db_models.Project).filter(db_models.Project.id == project_id).first()
+    if not db_project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if db_project.status != 'completed':
+        raise HTTPException(status_code=400, detail="You can only rate completed projects")
+
+    if current_user.id == db_project.client_id:
+        to_user_id = db_project.selected_contractor_id
+    elif current_user.id == db_project.selected_contractor_id:
+        to_user_id = db_project.client_id
+    else:
+        raise HTTPException(status_code=403, detail="You are not part of this project")
+
+    existing = db.query(db_models.Rating).filter(
+        db_models.Rating.project_id == project_id, 
+        db_models.Rating.from_user_id == current_user.id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="You have already rated this project")
+
+    db_rating = db_models.Rating(
+        project_id=project_id,
+        from_user_id=current_user.id,
+        to_user_id=to_user_id,
+        score_dim1=rating.score_dim1,
+        score_dim2=rating.score_dim2,
+        score_dim3=rating.score_dim3,
+        comment=rating.comment
+    )
+    db.add(db_rating)
+    db.commit()
+    db.refresh(db_rating)
+    return db_rating
+
+# --- API 15: Issue Tracker - 新增 [延伸三] ---
+@router.post("/{project_id}/issues", response_model=pydantic_models.Issue)
+def create_issue(
+    project_id: int,
+    issue: pydantic_models.IssueCreate,
+    db: Session = Depends(get_db),
+    current_user: db_models.User = Depends(get_current_user)
+):
+    db_project = db.query(db_models.Project).filter(db_models.Project.id == project_id).first()
+    if not db_project:
+        raise HTTPException(status_code=404, detail="Project not found")
+        
+    if db_project.status not in ['in_progress', 'rejected']:
+        raise HTTPException(status_code=400, detail="Issues allowed only in progress/rejected status")
+    
+    # [修正點] 嚴格限制：只有甲方 (Client) 可以建立 Issue
+    if current_user.id != db_project.client_id:
+        raise HTTPException(status_code=403, detail="Only the client (owner) can create issues")
+
+    db_issue = db_models.Issue(
+        project_id=project_id,
+        title=issue.title,
+        created_by_id=current_user.id,
+        status='open'
+    )
+    db.add(db_issue)
+    db.commit()
+    db.refresh(db_issue)
+    return db_issue
+
+# --- API 16: Issue Tracker - 列表/更新/留言 [延伸三] ---
+@router.get("/{project_id}/issues", response_model=List[pydantic_models.Issue])
+def get_issues(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: db_models.User = Depends(get_current_user)
+):
+    db_project = db.query(db_models.Project).filter(db_models.Project.id == project_id).first()
+    if not db_project or current_user.id not in [db_project.client_id, db_project.selected_contractor_id]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    # 使用 options(joinedload) 預載資料
+    issues = db.query(db_models.Issue).options(
+        joinedload(db_models.Issue.creator),
+        joinedload(db_models.Issue.comments).joinedload(db_models.IssueComment.sender)
+    ).filter(db_models.Issue.project_id == project_id).all()
+    return issues
+
+@router.post("/issues/{issue_id}/comments", response_model=pydantic_models.IssueComment)
+def create_issue_comment(
+    issue_id: int,
+    comment: pydantic_models.IssueCommentCreate,
+    db: Session = Depends(get_db),
+    current_user: db_models.User = Depends(get_current_user)
+):
+    db_issue = db.query(db_models.Issue).filter(db_models.Issue.id == issue_id).first()
+    if not db_issue:
+        raise HTTPException(status_code=404, detail="Issue not found")
+        
+    db_comment = db_models.IssueComment(
+        issue_id=issue_id,
+        user_id=current_user.id,
+        content=comment.content
+    )
+    db.add(db_comment)
+    db.commit()
+    db.refresh(db_comment)
+    return db_comment
+
+@router.put("/issues/{issue_id}/resolve")
+def resolve_issue(
+    issue_id: int,
+    db: Session = Depends(get_db),
+    current_client: db_models.User = Depends(get_current_client) # 只有甲方能解決
+):
+    db_issue = db.query(db_models.Issue).options(joinedload(db_models.Issue.project)).filter(db_models.Issue.id == issue_id).first()
+    if not db_issue:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    if db_issue.project.client_id != current_client.id:
+        raise HTTPException(status_code=403, detail="Only client can resolve issues")
+        
+    db_issue.status = 'resolved'
+    db.commit()
+    return {"message": "Issue resolved"}

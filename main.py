@@ -10,16 +10,25 @@ from starlette.middleware.sessions import SessionMiddleware
 from dotenv import load_dotenv
 import os
 
-
 # 匯入我們的路由
 from routes import auth, projects, upload
+
 # 匯入DB和模型
-from db.db import get_db
+# *** 修改點 1: 這裡多匯入了 engine ***
+from db.db import get_db, engine
 from db import models as db_models
 
 
 # 1. 載入 .env 檔案中的變數
 load_dotenv()
+
+# =================================================
+# *** 修改點 2: 加入這行來自動建立資料表 ***
+# 這行程式碼會檢查資料庫，如果 models.py 定義的表不存在，就會自動建立！
+# =================================================
+db_models.Base.metadata.create_all(bind=engine)
+
+
 app = FastAPI()
 
 # -----------------------------------------------
@@ -27,7 +36,7 @@ app = FastAPI()
 # -----------------------------------------------
 app.add_middleware(
     SessionMiddleware,
-    # 2. 改從環境變數讀取 SECRET_KEY，若讀不到則使用後面的預設值 (但不建議在生產環境用預設值)
+    # 2. 改從環境變數讀取 SECRET_KEY，若讀不到則使用後面的預設值
     secret_key=os.getenv("SECRET_KEY", "fallback_secret_key_if_env_missing"),
     max_age=86400,
 )
@@ -61,19 +70,18 @@ app.include_router(upload.router, prefix="/api", tags=["API - Upload"])
 # -----------------------------------------------
 
 # --- 
-# *** 這是【已修正】的「守衛」依賴項 ***
-# 它現在只回傳 RedirectResponse 或 True
+# 「守衛」依賴項
 # 
 def get_user_from_session(request: Request, db: Session = Depends(get_db)):
     user_id = request.session.get("user_id")
     if not user_id:
-        # *** 修正：未登入，滾去「登陸頁」 (/) ***
+        # 未登入，重導至首頁
         return RedirectResponse(url="/", status_code=303) 
         
     user = db.query(db_models.User).filter(db_models.User.id == user_id).first()
     if not user:
         request.session.clear()
-        return RedirectResponse(url="/", status_code=303) # 找不到用戶，滾去登陸頁
+        return RedirectResponse(url="/", status_code=303) # 找不到用戶，重導至首頁
     
     # 守衛已通過
     return True
@@ -92,7 +100,6 @@ def get_login_page(request: Request):
     if request.session.get("user_id"):
         return RedirectResponse(url="/dashboard", status_code=303)
         
-    # *** 修正：傳入一個預設的 context ***
     return templates.TemplateResponse("login.html", {"request": request, "unread_count": 0})
 
 # --- 頁面：註冊頁 ---
@@ -101,12 +108,9 @@ def get_register_page(request: Request):
     if request.session.get("user_id"):
         return RedirectResponse(url="/dashboard", status_code=303)
         
-    # *** 修正：傳入一個預設的 context ***
     return templates.TemplateResponse("register.html", {"request": request, "unread_count": 0})
 
-# --- 
-# 頁面：首頁 (*** 這是【已修正】的路由 ***)
-#
+# --- 頁面：首頁 (Dashboard) ---
 @app.get(
     "/dashboard", 
     response_class=HTMLResponse,
@@ -218,7 +222,7 @@ def get_create_project_page(
     if user.role != 'client':
         return RedirectResponse(url="/dashboard", status_code=403)
         
-    # *** 修正：也需要傳遞 unread_count ***
+    # 傳遞 unread_count
     unread_count = db.query(db_models.Communication).join(db_models.Project).filter(
         db_models.Project.client_id == user_id,
         db_models.Communication.sender_id != user_id,
@@ -262,7 +266,7 @@ def get_project_detail_page(
     elif db_project.status != 'open' and not (is_owner or is_selected_contractor):
          return RedirectResponse(url="/dashboard", status_code=303)
 
-    # 3. 標記為已讀
+    # 3. 標記訊息為已讀
     try:
         stmt = update(db_models.Communication).where(
             db_models.Communication.project_id == project_id,
@@ -282,7 +286,7 @@ def get_project_detail_page(
     bids = sorted(db_project.bids, key=lambda b: b.created_at)
     deliverables = sorted(db_project.deliverables, key=lambda d: d.uploaded_at, reverse=True)
 
-    # 5. *** 修正：也需要傳遞 unread_count (用於頂部導覽列) ***
+    # 5. 傳遞 unread_count
     my_project_ids = [p.id for p in user.projects_created] if user.role == 'client' else [p.id for p in user.projects_assigned]
     unread_count = 0
     if my_project_ids:
@@ -299,7 +303,7 @@ def get_project_detail_page(
         "bids": bids,
         "messages": messages,
         "deliverables": deliverables,
-        "unread_count": unread_count # <-- 傳遞
+        "unread_count": unread_count
     })
 
 # --- 頁面：編輯專案頁 ---
@@ -326,7 +330,7 @@ def get_edit_project_page(
     if db_project.status != 'open':
         return RedirectResponse(url=f"/project/{project_id}", status_code=400)
 
-    # *** 修正：也需要傳遞 unread_count ***
+    # 傳遞 unread_count
     my_project_ids = [p.id for p in user.projects_created]
     unread_count = 0
     if my_project_ids:
@@ -340,7 +344,7 @@ def get_edit_project_page(
         "request": request,
         "user": user,
         "project": db_project,
-        "unread_count": unread_count # <-- 傳遞
+        "unread_count": unread_count
     })
 
 # --- 頁面：登出 ---

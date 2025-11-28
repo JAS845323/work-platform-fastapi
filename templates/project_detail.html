@@ -10,6 +10,11 @@
         <script>
             const PROJECT_ID = {{ project.id }};
             const CURRENT_USER_ID = {{ user.id }};
+            // [延伸一] 截止時間變數
+            const DEADLINE_STR = "{{ project.deadline }}"; 
+            
+            // [關鍵修正] 將權限判斷轉為 JS 布林值，避免在 Template String 中出錯
+            const IS_CLIENT = {{ 'true' if user.role == 'client' else 'false' }};
         </script>
 
         <div class="detail-card">
@@ -30,6 +35,17 @@
                     </span>
                 </div>
                 <p class="page-subtitle" style="margin-bottom: 20px;">{{ project.description }}</p>
+                
+                {% if project.deadline and project.status == 'open' %}
+                <div style="margin-bottom: 20px; padding: 15px; background: rgba(236, 100, 75, 0.15); border-radius: 10px; border: 1px solid rgba(236, 100, 75, 0.3); display: flex; align-items: center;">
+                    <i class="fas fa-clock" style="color: #ec644b; font-size: 1.2rem; margin-right: 10px;"></i> 
+                    <div>
+                        <span style="color: #ec644b; font-weight: bold; display: block; font-size: 0.8rem;">競標截止倒數</span>
+                        <span id="countdown-timer" style="font-size: 1.3rem; font-weight: 700; color: white;">計算中...</span>
+                    </div>
+                </div>
+                {% endif %}
+
                 <hr style="border-color: rgba(255,255,255,0.1); margin-bottom: 20px;">
                 <p class="mb-0">
                     <small class="text-muted">發布者：</small>
@@ -41,37 +57,67 @@
             </div>
         </div>
 
+        {% if project.status == 'in_progress' or project.status == 'rejected' %}
+        <div class="detail-card">
+            <div class="detail-card-body">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                    <h3 class="card-header-title" style="margin:0;">問題追蹤 (Issue Tracker)</h3>
+                    
+                    {% if user.id == project.client.id %}
+                    <button class="glass-button btn-inline-sm" onclick="toggleIssueForm()">
+                        <i class="fas fa-plus"></i> 新增問題
+                    </button>
+                    {% endif %}
+                </div>
+                
+                <div id="new-issue-form" style="display:none; margin-bottom:20px; background:rgba(0,0,0,0.2); padding:20px; border-radius:10px;">
+                    <h5 style="margin-bottom: 10px; color: white;">建立新問題</h5>
+                    <input type="text" id="issue-title" class="glass-input" placeholder="請輸入問題標題..." style="margin-bottom:10px;">
+                    <div style="display: flex; gap: 10px;">
+                        <button class="glass-button btn-inline-xs" onclick="createIssue()">送出</button>
+                        <button class="glass-button btn-danger btn-inline-xs" onclick="toggleIssueForm()">取消</button>
+                    </div>
+                </div>
+
+                <div id="issue-list-container">
+                    <p style="text-align:center; color: rgba(255,255,255,0.5);">載入問題列表中...</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         {% if user.role == 'client' %}
             
             {% if project.status == 'open' %}
-            
             <div class="detail-card">
                 <div class="detail-card-body" style="text-align: center;">
                     <h3 class="card-header-title" style="text-align: center;">專案管理</h3>
                     <p>專案仍在開放中，您可以修改內容或取消專案。</p>
-                    <button class="glass-button btn-warning btn-inline" onclick="editProject({{ project.id }})">
-                        修改專案
-                    </button>
-                    <button class="glass-button btn-danger btn-inline" onclick="deleteProject()">
-                        取消(刪除)專案
-                    </button>
+                    <button class="glass-button btn-warning btn-inline" onclick="editProject({{ project.id }})">修改專案</button>
+                    <button class="glass-button btn-danger btn-inline" onclick="deleteProject()">取消(刪除)專案</button>
                 </div>
             </div>
-
             <div class="detail-card">
                 <div class="detail-card-body">
                     <h3 class="card-header-title">收到的報價 ({{ bids|length }})</h3>
                     <ul class="item-list">
                         {% for bid in bids %}
-                        <li>
-                            <div>
-                                <h5 style="color: white; font-weight: 600;">{{ bid.contractor.username }}</h5>
-                                <p style="margin: 5px 0;">報價：<strong style="color: #ec644b; font-size: 1.1rem;">${{ "%.0f"|format(bid.bid_amount) }}</strong></p>
-                                <small>{{ bid.proposal_text }}</small>
+                        <li style="flex-direction: column; align-items: flex-start;">
+                            <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <h5 style="color: white; font-weight: 600; margin-bottom: 5px;">{{ bid.contractor.username }}</h5>
+                                    <p style="margin: 0;">報價：<strong style="color: #ec644b; font-size: 1.1rem;">${{ "%.0f"|format(bid.bid_amount) }}</strong></p>
+                                </div>
+                                <button class="glass-button btn-success btn-inline-sm" onclick="selectBid({{ bid.id }})">選擇此報價</button>
                             </div>
-                            <button class="glass-button btn-success btn-inline-sm" onclick="selectBid({{ bid.id }})">
-                                選擇此報價
-                            </button>
+                            <div style="width: 100%; margin-top: 15px; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px;">
+                                <div style="color: rgba(255,255,255,0.8); margin-bottom: 10px;">{{ bid.proposal_text }}</div>
+                                {% if bid.proposal_file_path %}
+                                <a href="/media/{{ bid.proposal_file_path }}" target="_blank" style="display: inline-flex; align-items: center; color: #686de0; text-decoration: none; font-weight: 500;">
+                                    <i class="fas fa-file-pdf" style="margin-right: 8px; font-size: 1.2rem;"></i> 下載提案計畫書 (PDF)
+                                </a>
+                                {% endif %}
+                            </div>
                         </li>
                         {% else %}
                         <li style="text-align: center; justify-content: center;">尚未收到任何報價。</li>
@@ -81,62 +127,37 @@
             </div>
             
             {% elif project.status == 'in_progress' %}
-            
-            {% if deliverables|length > 0 %}
-            <div class="detail-card">
-                <div class="detail-card-body" style="text-align: center;">
-                    <h3 class="card-header-title" style="text-align: center;">結案管理</h3>
-                    <p>接案人已交付成果。您現在可以接受結案或退件。</p>
-                    <button class="glass-button btn-inline" onclick="updateStatus('completed')">
-                        接受結案
-                    </button>
-                    <button class="glass-button btn-danger btn-inline" onclick="updateStatus('rejected')">
-                        退件
-                    </button>
+                {% if deliverables|length > 0 %}
+                <div class="detail-card">
+                    <div class="detail-card-body" style="text-align: center;">
+                        <h3 class="card-header-title" style="text-align: center;">結案管理</h3>
+                        <p>接案人已交付成果。請檢查下方檔案與 Issue 狀態，決定結案或退件。</p>
+                        <div style="display: flex; justify-content: center; gap: 15px;">
+                            <button class="glass-button btn-inline" onclick="updateStatus('completed')">接受結案</button>
+                            <button class="glass-button btn-danger btn-inline" onclick="updateStatus('rejected')">退件 (要求重做)</button>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            {% else %}
-            <div class="detail-card">
-                <div class="detail-card-body" style="text-align: center;">
-                    <h3 class="card-header-title" style="text-align: center;">專案執行中</h3>
-                    <p>正等待接案人上傳結案檔案...</p>
+                {% else %}
+                <div class="detail-card">
+                    <div class="detail-card-body" style="text-align: center;">
+                        <h3 class="card-header-title" style="text-align: center;">專案執行中</h3>
+                        <p>正等待接案人上傳結案檔案...</p>
+                    </div>
                 </div>
-            </div>
-            {% endif %}
+                {% endif %}
             
             {% elif project.status == 'rejected' %}
             <div class="detail-card">
                 <div class="detail-card-body" style="text-align: center;">
-                    <h3 class="card-header-title" style="text-align: center;">專案已退件</h3>
-                    <p>您已退回此專案。您可以與接案人溝通後，要求對方重做。</p>
-                    <button class="glass-button btn-warning btn-inline" onclick="updateStatus('in_progress')">
-                        要求重做
-                    </button>
-                </div>
-            </div>
-            {% endif %}
-
-            {% if project.status != 'open' and deliverables|length > 0 %}
-            <div class="detail-card">
-                <div class="detail-card-body">
-                    <h3 class="card-header-title">交付成果 ({{ deliverables|length }})</h3>
-                    <ul class="item-list">
-                    {% for file in deliverables %}
-                        <li>
-                            <a href="/media/{{ file.file_path.replace('uploads/', '') }}" target="_blank">
-                                <i class="fas fa-download" style="margin-right: 10px;"></i>
-                                檔案 {{ loop.index }} (點擊下載)
-                            </a>
-                            <small>{{ file.uploaded_at.strftime('%Y-%m-%d') }}</small>
-                        </li>
-                    {% endfor %}
-                    </ul>
+                    <h3 class="card-header-title" style="text-align: center; color: #ec644b;">專案已退件</h3>
+                    <p>您已退回此專案。請等待接案人修正問題並重新上傳檔案。</p>
+                    <p style="font-size: 0.9rem; opacity: 0.7; margin-top: 10px;">(當乙方重新上傳檔案後，此處將自動變回審核介面)</p>
                 </div>
             </div>
             {% endif %}
 
         {% elif user.role == 'contractor' %}
-            
             {% if project.status == 'open' %}
             <div class="detail-card">
                 <div class="detail-card-body">
@@ -144,58 +165,102 @@
                     <form id="bid-form">
                         <div class="form-group">
                             <label for="bid_amount">報價金額</label>
-                            <input type="number" id="bid_amount" class="glass-input" required>
+                            <input type="number" id="bid_amount" name="bid_amount" class="glass-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="proposal_file">提案計畫書 (PDF, 必填)</label>
+                            <input type="file" id="proposal_file" name="proposal_file" class="glass-input" accept="application/pdf" required style="padding: 12px;">
                         </div>
                         <div class="form-group">
                             <label for="proposal_text">提案說明 (選填)</label>
-                            <textarea id="proposal_text" class="glass-input" rows="3"></textarea>
+                            <textarea id="proposal_text" name="proposal_text" class="glass-input" rows="3"></textarea>
                         </div>
                         <button type="submit" class="glass-button">送出報價</button>
                     </form>
                 </div>
             </div>
-            
             {% elif (project.status == 'in_progress' or project.status == 'rejected') and project.selected_contractor_id == user.id %}
             <div class="detail-card">
                 <div class="detail-card-body">
                     <h3 class="card-header-title">上傳/管理結案檔案</h3>
                     {% if project.status == 'rejected' %}
-                        <p class="error-message" style="display: block; background-color: rgba(236, 100, 75, 0.15); color: #ffc4c4;">
-                            注意：委託人已退件。請上傳修正後的檔案。
-                        </p>
+                        <div class="error-message" style="display: block; background-color: rgba(236, 100, 75, 0.2); border: 1px solid #ec644b; color: #ffc4c4; padding: 20px; margin-bottom: 20px;">
+                            <h4 style="margin-bottom: 10px; color: #ec644b; font-weight: bold;"><i class="fas fa-exclamation-triangle"></i> 專案已被退件</h4>
+                            <p>委託人對您的交付成果不滿意。請查看上方的「問題追蹤」列表，修正後重新上傳。</p>
+                        </div>
                     {% endif %}
                     <form id="upload-form">
                         <div class="form-group">
                             <label for="file">選擇檔案</label>
-                            <input type="file" id="file" class="glass-input" required style="padding: 12px;">
+                            <input type="file" id="file" name="file" class="glass-input" required style="padding: 12px;">
                         </div>
-                        <button type="submit" class="glass-button">上傳檔案</button>
+                        <button type="submit" class="glass-button">
+                            {% if project.status == 'rejected' %} 上傳修正後的檔案 {% else %} 上傳檔案 {% endif %}
+                        </button>
                     </form>
-                    
-                    {% if deliverables %}
-                        <hr style="border-color: rgba(255,255,255,0.1); margin: 2rem 0;">
-                        <h5 class="card-header-title" style="font-size: 1.2rem;">已上傳檔案：</h5>
-                        <ul class="item-list">
-                        {% for file in deliverables %}
-                            <li style="padding: 10px 0;">
-                                <a href="/media/{{ file.file_path.replace('uploads/', '') }}" target="_blank">
-                                    <i class="fas fa-file-alt" style="margin-right: 10px;"></i>
-                                    檔案 {{ loop.index }}
-                                </a>
-                                <button class="glass-button btn-danger btn-inline-xs" onclick="deleteFile({{ file.id }})">
-                                    刪除
-                                </button>
-                            </li>
-                        {% endfor %}
-                        </ul>
-                    {% endif %}
                 </div>
             </div>
             {% endif %}
-
         {% endif %}
 
-    </div> <div class="project-sidebar">
+        {% if project.status != 'open' and deliverables|length > 0 %}
+        <div class="detail-card">
+            <div class="detail-card-body">
+                <h3 class="card-header-title">交付成果 ({{ deliverables|length }})</h3>
+                <ul class="item-list">
+                {% for file in deliverables %}
+                    <li>
+                        <div style="display: flex; align-items: center;">
+                            <span style="background: #686de0; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 10px; font-weight: bold;">V{{ file.version }}</span>
+                            <a href="/media/{{ file.file_path.replace('uploads/', '') }}" target="_blank">
+                                <i class="fas fa-download" style="margin-right: 10px;"></i> 檔案 (點擊下載)
+                            </a>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <small>{{ file.uploaded_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                            {% if user.role == 'contractor' and (project.status == 'in_progress' or project.status == 'rejected') and file.contractor_id == user.id %}
+                            <button class="glass-button btn-danger btn-inline-xs" onclick="deleteFile({{ file.id }})" style="margin: 0;">刪除</button>
+                            {% endif %}
+                        </div>
+                    </li>
+                {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if project.status == 'completed' %}
+        <div class="detail-card">
+            <div class="detail-card-body">
+                <h3 class="card-header-title">評價與回饋</h3>
+                <form id="rating-form">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                        <div>
+                            <label style="display:block; margin-bottom:5px; font-size:0.9rem;">維度一 (1-5)</label>
+                            <input type="number" id="score1" min="1" max="5" class="glass-input" required placeholder="5">
+                        </div>
+                        <div>
+                            <label style="display:block; margin-bottom:5px; font-size:0.9rem;">維度二 (1-5)</label>
+                            <input type="number" id="score2" min="1" max="5" class="glass-input" required placeholder="5">
+                        </div>
+                        <div>
+                            <label style="display:block; margin-bottom:5px; font-size:0.9rem;">維度三 (1-5)</label>
+                            <input type="number" id="score3" min="1" max="5" class="glass-input" required placeholder="5">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>質性評論</label>
+                        <textarea id="rating-comment" class="glass-input" placeholder="請輸入您的評價..." rows="3"></textarea>
+                    </div>
+                    <button type="submit" class="glass-button">送出評價</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+    </div> 
+    
+    <div class="project-sidebar">
         {% if project.status != 'open' and (user.id == project.client.id or user.id == project.selected_contractor_id) %}
         <div class="detail-card">
             <div class="detail-card-body" style="padding: 0;">
@@ -204,10 +269,7 @@
                     {% for msg in messages %}
                         <div class="chat-message {% if msg.sender_id == user.id %}is-sender{% endif %}">
                             <div class="message-bubble">
-                                <strong style="color: {% if msg.sender_id == user.id %}rgba(255,255,255,0.7){% else %}rgba(104, 109, 224, 0.9){% endif %}">
-                                    {{ msg.sender.username }}
-                                </strong>
-                                {{ msg.message }}
+                                <strong>{{ msg.sender.username }}</strong> {{ msg.message }}
                                 <small>{{ msg.created_at.strftime('%H:%M') }}</small>
                             </div>
                         </div>
@@ -224,173 +286,220 @@
             </div>
         </div>
         {% endif %}
-    </div> </div> {% endblock %}
-
+    </div> 
+</div>
+{% endblock %}
 
 {% block scripts %}
 <script>
-    // --- (通用) API 呼叫函數 ---
-    async function apiCall(endpoint, method, body) {
-        const headers = (body instanceof FormData) ? {} : { "Content-Type": "application/json" };
-        const response = await fetch(endpoint, {
-            method: method,
-            headers: headers,
-            body: (body instanceof FormData) ? body : JSON.stringify(body)
-        });
-        
+    // 通用 API 呼叫
+    async function apiCall(endpoint, method, body, isFile=false) {
+        const headers = isFile ? {} : { "Content-Type": "application/json" };
+        const payload = isFile ? body : JSON.stringify(body);
+        const response = await fetch(endpoint, { method, headers, body: payload });
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.detail || "API 請求失敗");
         }
         const contentType = response.headers.get("content-type");
-        if (contentType && contentType.indexOf("application/json") !== -1) {
-            return await response.json();
-        } else {
-            return await response.text();
+        return (contentType && contentType.indexOf("application/json") !== -1) ? await response.json() : await response.text();
+    }
+
+    // 倒數計時
+    if (typeof DEADLINE_STR !== 'undefined' && DEADLINE_STR && DEADLINE_STR !== 'None') {
+        const deadline = new Date(DEADLINE_STR).getTime();
+        setInterval(() => {
+            const now = new Date().getTime();
+            const dist = deadline - now;
+            const el = document.getElementById("countdown-timer");
+            if (dist < 0) { if(el) el.innerHTML = "已截止"; } 
+            else {
+                const d = Math.floor(dist / (1000 * 60 * 60 * 24));
+                const h = Math.floor((dist % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const m = Math.floor((dist % (1000 * 60 * 60)) / (1000 * 60));
+                if(el) el.innerHTML = `${d}天 ${h}時 ${m}分`;
+            }
+        }, 1000);
+    }
+
+    // Issue Tracker 邏輯 (修正載入問題)
+    function toggleIssueForm() {
+        const el = document.getElementById("new-issue-form");
+        if(el) el.style.display = (el.style.display === "none") ? "block" : "none";
+    }
+
+// --- [延伸三] Issue Tracker 渲染邏輯 (含留言討論功能) ---
+    
+    async function loadIssues() {
+        const container = document.getElementById("issue-list-container");
+        if (!container) return;
+        
+        try {
+            // 取得問題列表 (API 會同時回傳 comments)
+            const issues = await apiCall(`/api/projects/${PROJECT_ID}/issues`, "GET");
+            
+            if(issues.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color: rgba(255,255,255,0.5);">目前沒有任何問題。</p>';
+                return;
+            }
+
+            container.innerHTML = issues.map(i => {
+                // 1. 判斷是否顯示「解決」按鈕 (僅甲方且狀態為 open)
+                let resolveBtn = '';
+                if (i.status === 'open' && IS_CLIENT) {
+                    resolveBtn = `<button onclick="resolveIssue(${i.id})" class="glass-button btn-success btn-inline-xs" style="margin-left:10px; padding: 5px 10px;">解決</button>`;
+                }
+
+                // 2. 生成留言列表 HTML
+                const commentsHtml = i.comments.map(c => `
+                    <div style="margin-top: 8px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 6px; border-left: 2px solid rgba(255,255,255,0.3);">
+                        <div style="display:flex; justify-content:space-between; font-size: 0.8rem; color: rgba(255,255,255,0.6); margin-bottom: 2px;">
+                            <span>${c.sender ? c.sender.username : 'Unknown'}</span>
+                            <span>${new Date(c.created_at).toLocaleString()}</span>
+                        </div>
+                        <div style="color: rgba(255,255,255,0.9); font-size: 0.9rem;">${c.content}</div>
+                    </div>
+                `).join('');
+
+                // 3. 生成回覆輸入框 (僅當狀態為 open 時允許回覆)
+                const replyInputHtml = i.status === 'open' ? `
+                    <div style="display:flex; margin-top: 10px; gap: 5px;">
+                        <input type="text" id="reply-input-${i.id}" class="glass-input" style="font-size: 0.9rem; padding: 8px;" placeholder="回覆此問題...">
+                        <button onclick="replyIssue(${i.id})" class="glass-button btn-inline-xs" style="margin:0;">回覆</button>
+                    </div>
+                ` : '<div style="margin-top:10px; font-size:0.8rem; color:rgba(45, 206, 137, 0.8); text-align:center;">此問題已解決，關閉討論。</div>';
+
+                // 4. 組合卡片
+                return `
+                <div style="background:rgba(255,255,255,0.08); padding:20px; margin-bottom:15px; border-radius:12px; border: 1px solid rgba(255,255,255,0.1);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <div style="display:flex; align-items:center;">
+                            <strong style="font-size:1.1rem; color:white; margin-right: 10px;">${i.title}</strong>
+                            <span style="padding:2px 8px; border-radius:12px; font-size:0.75rem; font-weight:bold; 
+                                ${i.status==='open' ? 'background:rgba(236,100,75,0.2); color:#ec644b;' : 'background:rgba(45,206,137,0.2); color:#2dce89;'}">
+                                ${i.status.toUpperCase()}
+                            </span>
+                        </div>
+                        <div style="display:flex; align-items:center;">
+                            <small style="color:rgba(255,255,255,0.5); margin-right:5px;">建立者: ${i.creator ? i.creator.username : 'Unknown'}</small>
+                            ${resolveBtn}
+                        </div>
+                    </div>
+                    
+                    <hr style="border-color: rgba(255,255,255,0.05); margin: 10px 0;">
+
+                    <div class="issue-comments" style="max-height: 300px; overflow-y: auto;">
+                        ${commentsHtml.length > 0 ? commentsHtml : '<small style="color:rgba(255,255,255,0.3);">暫無討論...</small>'}
+                    </div>
+
+                    ${replyInputHtml}
+                </div>`;
+            }).join('');
+
+        } catch (e) {
+            console.error(e);
+            container.innerHTML = '<p style="text-align:center; color: #ffc4c4;">載入問題失敗</p>';
         }
     }
+
+    // 新增：回覆問題 (留言)
+    async function replyIssue(issueId) {
+        const input = document.getElementById(`reply-input-${issueId}`);
+        const content = input.value.trim();
+        
+        if (!content) return; // 空值不送出
+
+        try {
+            await apiCall(`/api/projects/issues/${issueId}/comments`, "POST", { content: content });
+            // 清空並重新載入列表以顯示新留言
+            input.value = "";
+            loadIssues(); 
+        } catch (e) {
+            alert(`回覆失敗: ${e.message}`);
+        }
+    }
+
+    async function createIssue() {
+        const title = document.getElementById("issue-title").value;
+        if (!title) return alert("請輸入標題");
+        try {
+            await apiCall(`/api/projects/${PROJECT_ID}/issues`, "POST", { title });
+            document.getElementById("issue-title").value = "";
+            toggleIssueForm();
+            loadIssues();
+        } catch (e) { alert(e.message); }
+    }
     
-    // --- (接案人) 投標 ---
+    async function resolveIssue(id) {
+        if(!confirm("確定已解決？")) return;
+        try { await apiCall(`/api/projects/issues/${id}/resolve`, "PUT", {}); loadIssues(); } catch(e) { alert(e.message); }
+    }
+
+    // 初始化
+    document.addEventListener("DOMContentLoaded", () => {
+        if(document.getElementById("issue-list-container")) loadIssues();
+    });
+
+    // 其他表單處理 (投標、上傳、狀態更新...)
     const bidForm = document.getElementById("bid-form");
     if (bidForm) {
         bidForm.addEventListener("submit", async (e) => {
             e.preventDefault();
-            const bid_amount = e.target.bid_amount.value;
-            const proposal_text = e.target.proposal_text.value;
-            try {
-                await apiCall(`/api/projects/${PROJECT_ID}/bid`, "POST", { bid_amount, proposal_text });
-                alert("投標成功！");
-                window.location.reload();
-            } catch (error) {
-                alert(`投標失敗: ${error.message}`);
-            }
+            const formData = new FormData(bidForm);
+            const fileInput = document.getElementById("proposal_file");
+            if(fileInput.files.length > 0) formData.append("file", fileInput.files[0]);
+            try { await apiCall(`/api/projects/${PROJECT_ID}/bid`, "POST", formData, true); alert("投標成功！"); window.location.reload(); } catch (e) { alert(`失敗: ${e.message}`); }
         });
     }
-
-    // --- (委託人) 決標 ---
-    async function selectBid(bidId) {
-        if (!confirm("確定要選擇此報價並開始專案嗎？")) return;
-        try {
-            await apiCall(`/api/projects/${PROJECT_ID}/select_bid/${bidId}`, "POST", {});
-            alert("決標成功！專案已開始。");
-            window.location.reload();
-        } catch (error) {
-            alert(`決標失敗: ${error.message}`);
-        }
-    }
-
-    // --- (委託人) 結案管理 ---
-    async function updateStatus(newStatus) {
-        let action = '';
-        if (newStatus === 'completed') { action = '接受結案'; }
-        else if (newStatus === 'rejected') { action = '退件'; }
-        else if (newStatus === 'in_progress') { action = '要求重做'; }
-        
-        if (!confirm(`確定要「${action}」此專案嗎？`)) return;
-        
-        try {
-            await apiCall(`/api/projects/${PROJECT_ID}/status`, "POST", { status: newStatus });
-            alert(`操作成功！專案狀態已更新。`);
-            window.location.reload();
-        } catch (error) {
-            alert(`操作失敗: ${error.message}`);
-        }
-    }
     
-    // --- (接案人) 檔案上傳 ---
+    async function selectBid(id) {
+        if(!confirm("確定決標？")) return;
+        try { await apiCall(`/api/projects/${PROJECT_ID}/select_bid/${id}`, "POST", {}); window.location.reload(); } catch(e) { alert(e.message); }
+    }
+
+    async function updateStatus(s) {
+        if(!confirm("確定？")) return;
+        try { await apiCall(`/api/projects/${PROJECT_ID}/status`, "POST", { status: s }); window.location.reload(); } catch(e) { alert(e.message); }
+    }
+
     const uploadForm = document.getElementById("upload-form");
     if (uploadForm) {
         uploadForm.addEventListener("submit", async (e) => {
             e.preventDefault();
-            const fileInput = e.target.file;
-            if (fileInput.files.length === 0) {
-                alert("請先選擇檔案。");
-                return;
-            }
-            const formData = new FormData();
-            formData.append("file", fileInput.files[0]);
-            
-            try {
-                await apiCall(`/api/projects/${PROJECT_ID}/upload`, "POST", formData);
-                alert("檔案上傳成功！");
-                window.location.reload();
-            } catch (error) {
-                alert(`上傳失敗: ${error.message}`);
-            }
+            const fd = new FormData(uploadForm);
+            try { await apiCall(`/api/projects/${PROJECT_ID}/upload`, "POST", fd, true); alert("上傳成功"); window.location.reload(); } catch(e) { alert(e.message); }
         });
     }
-
-    // --- (接案人) 刪除檔案 ---
-    async function deleteFile(deliverableId) {
-        if (!confirm("確定要永久刪除這個檔案嗎？")) return;
-        
-        try {
-            await apiCall(`/api/deliverable/${deliverableId}`, "DELETE", {});
-            alert("檔案刪除成功！");
-            window.location.reload();
-        } catch (error) {
-            alert(`刪除失敗: ${error.message}`);
-        }
-    }
-
-    // --- (委託人) 刪除專案 ---
-    async function deleteProject() {
-        if (!confirm("【警告】\n\n您確定要永久刪除此專案嗎？\n此操作無法復原。")) return;
-        
-        try {
-            await apiCall(`/api/projects/${PROJECT_ID}`, "DELETE", {});
-            alert("專案已成功刪除。");
-            window.location.href = "/dashboard";
-        } catch (error) {
-            alert(`刪除失敗: ${error.message}`);
-        }
-    }
     
-    // *** 這是【已修正】的「修改專案」JS 函數 ***
-    function editProject(projectId) {
-        // 全域的 'click' 監聽器 (在 base.html) 會自動播放波紋
-        // 我們只需要延遲跳轉
-        setTimeout(() => {
-            window.location.href = `/project/edit/${projectId}`;
-        }, 300); // 延遲 300 毫秒
-    }
-
-    // --- (雙方) 溝通：傳送訊息 ---
-    const messageForm = document.getElementById("message-form");
-    const messageList = document.getElementById("message-list");
-    const messageInput = document.getElementById("message-input");
+    async function deleteFile(id) { if(confirm("確定刪除？")) try { await apiCall(`/api/deliverable/${id}`, "DELETE", {}); window.location.reload(); } catch(e) { alert(e.message); } }
+    async function deleteProject() { if(confirm("確定刪除？")) try { await apiCall(`/api/projects/${PROJECT_ID}`, "DELETE", {}); window.location.href="/dashboard"; } catch(e) { alert(e.message); } }
+    function editProject(id) { setTimeout(() => { window.location.href = `/project/edit/${id}`; }, 300); }
     
-    if (messageForm) {
-        if(messageList) {
-             messageList.scrollTop = messageList.scrollHeight;
-        }
-
-        messageForm.addEventListener("submit", async (e) => {
+    const msgForm = document.getElementById("message-form");
+    if(msgForm) {
+        const list = document.getElementById("message-list");
+        if(list) list.scrollTop = list.scrollHeight;
+        msgForm.addEventListener("submit", async(e)=>{
             e.preventDefault();
-            const message = messageInput.value;
-            if (!message) return;
-            
+            const val = document.getElementById("message-input").value;
+            if(!val) return;
+            try { await apiCall(`/api/projects/${PROJECT_ID}/messages`, "POST", {message:val}); window.location.reload(); } catch(e){alert(e.message);}
+        });
+    }
+    
+    const rForm = document.getElementById("rating-form");
+    if(rForm) {
+        rForm.addEventListener("submit", async(e)=>{
+            e.preventDefault();
             try {
-                const newMsg = await apiCall(`/api/projects/${PROJECT_ID}/messages`, "POST", { message });
-                
-                const placeholder = document.getElementById("no-message-placeholder");
-                if (placeholder) placeholder.remove();
-                
-                const msgDiv = document.createElement("div");
-                msgDiv.className = "chat-message is-sender";
-                msgDiv.innerHTML = `
-                    <div class="message-bubble">
-                        <strong style="color: rgba(255,255,255,0.7);">${newMsg.sender.username}</strong>
-                        ${newMsg.message}
-                        <small>${new Date(newMsg.created_at).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</small>
-                    </div>`;
-                messageList.appendChild(msgDiv);
-                messageInput.value = "";
-                messageList.scrollTop = messageList.scrollHeight;
-                
-            } catch (error) {
-                alert(`訊息傳送失敗: ${error.message}`);
-            }
+                await apiCall(`/api/projects/${PROJECT_ID}/rate`, "POST", {
+                    score_dim1: document.getElementById("score1").value,
+                    score_dim2: document.getElementById("score2").value,
+                    score_dim3: document.getElementById("score3").value,
+                    comment: document.getElementById("rating-comment").value
+                });
+                alert("評價成功"); window.location.reload();
+            } catch(e){alert(e.message);}
         });
     }
 </script>

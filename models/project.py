@@ -1,42 +1,93 @@
 from pydantic import BaseModel
 from enum import Enum
 from datetime import datetime
-from .user import User # 匯入我們之前定義的 User 模型
+from typing import List, Optional
+from .user import User 
 
-# --- Pydantic Models ---
-
-# Enum 必須和 db/models.py 中的 Enum 一致
+# --- Project Status Enum ---
 class ProjectStatus(str, Enum):
     open = 'open'
     in_progress = 'in_progress'
     completed = 'completed'
     rejected = 'rejected'
 
-# 用於 API "輸入" (建立專案)
+# --- [延伸二] Rating Models ---
+class RatingCreate(BaseModel):
+    score_dim1: int
+    score_dim2: int
+    score_dim3: int
+    comment: str | None = None
+
+class Rating(BaseModel):
+    id: int
+    from_user_id: int
+    to_user_id: int
+    score_dim1: int
+    score_dim2: int
+    score_dim3: int
+    comment: str | None = None
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# --- [延伸三] Issue Models ---
+class IssueCommentCreate(BaseModel):
+    content: str
+
+class IssueComment(BaseModel):
+    id: int
+    user_id: int
+    content: str
+    created_at: datetime
+    sender: User
+    
+    class Config:
+        from_attributes = True
+
+class IssueCreate(BaseModel):
+    title: str
+
+class Issue(BaseModel):
+    id: int
+    project_id: int
+    title: str
+    status: str 
+    created_by_id: int
+    created_at: datetime
+    comments: List[IssueComment] = []
+    creator: User
+    
+    class Config:
+        from_attributes = True
+
+# --- Project Models ---
+
 class ProjectCreate(BaseModel):
     title: str
-    description: str | None = None # 允許描述為空
+    description: str | None = None
+    deadline: datetime | None = None # [延伸一] 截止時間
 
-# 用於 API "回傳" (顯示專案詳細資料)
 class Project(BaseModel):
     id: int
     client_id: int
     title: str
     description: str | None = None
     status: ProjectStatus
+    deadline: datetime | None = None # [延伸一]
     created_at: datetime
+    selected_contractor_id: int | None = None
     
-    client: User # 巢狀模型：顯示建立此專案的委託人資料
+    client: User 
+    ratings: List[Rating] = [] # [延伸二]
+    issues: List[Issue] = []   # [延伸三]
     
     class Config:
-        from_attributes = True # Pydantic V2 (取代 orm_mode)
- # 用於 API "輸入" (修改專案)
+        from_attributes = True
+
 class ProjectUpdate(BaseModel):
     title: str
     description: str | None = None
 
-# 用於 API "輸入" (結案管理：接受/退件)
 class ProjectStatusUpdate(BaseModel):
-    # 我們重複使用在 Project 模型頂部定義的 ProjectStatus Enum
-    # 它只接受 'open', 'in_progress', 'completed', 'rejected'
     status: ProjectStatus

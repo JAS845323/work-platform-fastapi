@@ -3,6 +3,21 @@
 {% block title %}建立新專案{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+<style>
+    /* 微調 Flatpickr 樣式以匹配玻璃質感 */
+    .flatpickr-calendar {
+        background: rgba(30, 30, 50, 0.95) !important;
+        backdrop-filter: blur(15px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
+    }
+    .flatpickr-day.selected {
+        background: #686de0 !important;
+        border-color: #686de0 !important;
+    }
+</style>
+
 <div class="glass-card">
     <h2 class="card-title text-center fw-bold mb-4" style="color: #ffffff; font-weight: 300; font-size: 2.2rem;">
         建立您的新專案
@@ -14,12 +29,25 @@
     <form id="create-project-form">
         <div class="form-group">
             <label for="title">專案標題</label>
-            <input type="text" id="title" name="title" class="glass-input" required>
+            <input type="text" id="title" name="title" class="glass-input" placeholder="例如：企業形象網站開發" required>
         </div>
+        
+        <div class="form-group">
+            <label for="deadline">競標截止期限 (選填)</label>
+            <div style="position: relative;">
+                <input type="text" id="deadline" name="deadline" class="glass-input" placeholder="請選擇截止日期與時間..." style="background-color: rgba(0,0,0,0.2); cursor: pointer;">
+                <i class="fas fa-calendar-alt" style="position: absolute; right: 15px; top: 15px; color: rgba(255,255,255,0.5); pointer-events: none;"></i>
+            </div>
+            <small style="color: rgba(255,255,255,0.5); font-size: 0.8rem; margin-top: 5px; display: block;">
+                * 設定期限後，將啟用「限時競標」模式，倒數結束前無法決標。
+            </small>
+        </div>
+
         <div class="form-group">
             <label for="description">專案描述</label>
-            <textarea id="description" name="description" class="glass-input" rows="5" placeholder="詳細說明您的需求..."></textarea>
+            <textarea id="description" name="description" class="glass-input" rows="5" placeholder="請詳細說明您的需求、預算範圍以及交付標準..."></textarea>
         </div>
+        
         <div class="form-group" style="margin-top: 2rem;">
             <button type="submit" class="glass-button">發布專案</button>
         </div>
@@ -32,14 +60,35 @@
 
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr/dist/l10n/zh-tw.js"></script>
+
 <script>
+    // --- 初始化日期時間選擇器 ---
+    flatpickr("#deadline", {
+        enableTime: true,          // 啟用時間選擇
+        dateFormat: "Y-m-d H:i",   // 格式：年-月-日 時:分
+        minDate: "today",          // 限制不能選過去的時間
+        time_24hr: true,           // 24小時制
+        locale: "zh_tw",           // 使用繁體中文
+        disableMobile: "true",     // 在手機上也強制使用 Flatpickr 主題 (這會讓手機版也變好看)
+        theme: "dark"              // 深色主題模式
+    });
+
+    // --- 表單送出邏輯 (保持不變) ---
     document.getElementById("create-project-form").addEventListener("submit", async function(event) {
         event.preventDefault();
 
-        const title = event.target.title.value;
-        const description = event.target.description.value;
         const errorMessage = document.getElementById("error-message");
         const successMessage = document.getElementById("success-message");
+
+        // 收集表單資料
+        const data = {
+            title: event.target.title.value,
+            description: event.target.description.value,
+            // 若使用者未填寫，這裡會是空字串，傳給後端前轉為 null
+            deadline: event.target.deadline.value || null
+        };
 
         try {
             const response = await fetch("/api/projects/", {
@@ -47,10 +96,7 @@
                 headers: { 
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({
-                    title: title,
-                    description: description
-                })
+                body: JSON.stringify(data)
             });
 
             if (response.ok) {
@@ -63,8 +109,8 @@
                 }, 2000);
 
             } else {
-                const data = await response.json();
-                errorMessage.textContent = data.detail || "建立失敗。";
+                const res = await response.json();
+                errorMessage.textContent = res.detail || "建立失敗。";
                 errorMessage.style.display = "block";
                 successMessage.style.display = "none";
             }
