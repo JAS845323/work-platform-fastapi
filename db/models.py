@@ -115,6 +115,42 @@ class Rating(Base):
     from_user = relationship("User", foreign_keys=[from_user_id])
     to_user = relationship("User", foreign_keys=[to_user_id])
 
+    # --- Contractor's scores (rated by client) ---
+    @property
+    def quality_score(self):
+        """產出品質 (1-5)"""
+        if self.to_user.role == 'contractor':
+            return self.score_dim1
+        return None
+
+    @property
+    def efficiency_score(self):
+        """執行效率 (1-5)"""
+        if self.to_user.role == 'contractor':
+            return self.score_dim2
+        return None
+
+    # --- Client's scores (rated by contractor) ---
+    @property
+    def reasonableness_score(self):
+        """需求合理性 (1-5)"""
+        if self.to_user.role == 'client':
+            return self.score_dim1
+        return None
+
+    @property
+    def acceptance_difficulty_score(self):
+        """驗收難度 (1-5)"""
+        if self.to_user.role == 'client':
+            return self.score_dim2
+        return None
+
+    # --- Shared score ---
+    @property
+    def cooperation_score(self):
+        """合作態度 (1-5)"""
+        return self.score_dim3
+
 # --- [延伸三] Issue Tracker ---
 class Issue(Base):
     __tablename__ = "issues"

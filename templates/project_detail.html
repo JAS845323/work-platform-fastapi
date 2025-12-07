@@ -232,28 +232,82 @@
         {% if project.status == 'completed' %}
         <div class="detail-card">
             <div class="detail-card-body">
-                <h3 class="card-header-title">評價與回饋</h3>
-                <form id="rating-form">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-                        <div>
-                            <label style="display:block; margin-bottom:5px; font-size:0.9rem;">維度一 (1-5)</label>
-                            <input type="number" id="score1" min="1" max="5" class="glass-input" required placeholder="5">
+                <h3 class="card-header-title">專案結案評分</h3>
+
+                {# --- 我給對方的評分 --- #}
+                <div style="margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 25px;">
+                    <h4 style="font-size: 1.1rem; color: rgba(255,255,255,0.8); margin-bottom: 15px;">
+                        您對 {{ other_party.username }} ({{ '接案人' if other_party.role == 'contractor' else '委託人' }}) 的評分
+                    </h4>
+                    {% if my_rating %}
+                        {# 如果已經評分，就顯示分數 #}
+                        <div style="font-size: 0.95rem; color: rgba(255,255,255,0.7); line-height: 1.8;">
+                            {% if user.role == 'client' %}
+                            <p><strong>產出品質：</strong> {{ my_rating.quality_score }} / 5</p>
+                            <p><strong>執行效率：</strong> {{ my_rating.efficiency_score }} / 5</p>
+                            <p><strong>合作態度：</strong> {{ my_rating.cooperation_score }} / 5</p>
+                            {% elif user.role == 'contractor' %}
+                            <p><strong>需求合理性：</strong> {{ my_rating.reasonableness_score }} / 5</p>
+                            <p><strong>驗收難度：</strong> {{ my_rating.acceptance_difficulty_score }} / 5</p>
+                            <p><strong>合作態度：</strong> {{ my_rating.cooperation_score }} / 5</p>
+                            {% endif %}
+                            {% if my_rating.comment %}
+                            <p style="margin-top: 10px;"><strong>您的評論：</strong></p>
+                            <p style="padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">{{ my_rating.comment }}</p>
+                            {% endif %}
                         </div>
-                        <div>
-                            <label style="display:block; margin-bottom:5px; font-size:0.9rem;">維度二 (1-5)</label>
-                            <input type="number" id="score2" min="1" max="5" class="glass-input" required placeholder="5">
+                    {% else %}
+                        {# 如果還沒評分，就顯示評分表單 #}
+                        <form id="rating-form">
+                            <input type="hidden" id="to_user_id" value="{{ other_party.id }}">
+                            
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                                {% if user.role == 'client' %}
+                                <div>
+                                    <label for="score1" style="display:block; margin-bottom:5px; font-size:0.9rem;">產出品質 (1-5)</label>
+                                    <input type="number" id="score1" min="1" max="5" class="glass-input" required placeholder="5">
+                                </div>
+                                <div>
+                                    <label for="score2" style="display:block; margin-bottom:5px; font-size:0.9rem;">執行效率 (1-5)</label>
+                                    <input type="number" id="score2" min="1" max="5" class="glass-input" required placeholder="5">
+                                </div>
+                                {% elif user.role == 'contractor' %}
+                                <div>
+                                    <label for="score1" style="display:block; margin-bottom:5px; font-size:0.9rem;">需求合理性 (1-5)</label>
+                                    <input type="number" id="score1" min="1" max="5" class="glass-input" required placeholder="5">
+                                </div>
+                                <div>
+                                    <label for="score2" style="display:block; margin-bottom:5px; font-size:0.9rem;">驗收難度 (1-5)</label>
+                                    <input type="number" id="score2" min="1" max="5" class="glass-input" required placeholder="5">
+                                </div>
+                                {% endif %}
+                                <div>
+                                    <label for="score3" style="display:block; margin-bottom:5px; font-size:0.9rem;">合作態度 (1-5)</label>
+                                    <input type="number" id="score3" min="1" max="5" class="glass-input" required placeholder="5">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>質性評論 (選填)</label>
+                                <textarea id="rating-comment" class="glass-input" placeholder="請輸入您的評價..." rows="3"></textarea>
+                            </div>
+                            <button type="submit" class="glass-button">送出評價</button>
+                        </form>
+                    {% endif %}
+                </div>
+
+                {# --- 對方給我的評分 --- #}
+                <div>
+                    <h4 style="font-size: 1.1rem; color: rgba(255,255,255,0.8); margin-bottom: 15px;">
+                        {{ other_party.username }} 對您的評分
+                    </h4>
+                    {% if rating_for_me %}
+                        <div style="font-size: 0.95rem; color: rgba(255,255,255,0.7); line-height: 1.8;">
+                            <p>對方已評分，您可以在個人儀表板查看您的平均分數。</p>
                         </div>
-                        <div>
-                            <label style="display:block; margin-bottom:5px; font-size:0.9rem;">維度三 (1-5)</label>
-                            <input type="number" id="score3" min="1" max="5" class="glass-input" required placeholder="5">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>質性評論</label>
-                        <textarea id="rating-comment" class="glass-input" placeholder="請輸入您的評價..." rows="3"></textarea>
-                    </div>
-                    <button type="submit" class="glass-button">送出評價</button>
-                </form>
+                    {% else %}
+                        <p style="color: rgba(255,255,255,0.5);">對方尚未提供評分。</p>
+                    {% endif %}
+                </div>
             </div>
         </div>
         {% endif %}
@@ -496,7 +550,8 @@
                     score_dim1: document.getElementById("score1").value,
                     score_dim2: document.getElementById("score2").value,
                     score_dim3: document.getElementById("score3").value,
-                    comment: document.getElementById("rating-comment").value
+                    comment: document.getElementById("rating-comment").value,
+                    to_user_id: document.getElementById("to_user_id").value
                 });
                 alert("評價成功"); window.location.reload();
             } catch(e){alert(e.message);}

@@ -249,8 +249,11 @@ def get_project_detail_page(
     db_project = db.query(db_models.Project).options(
         joinedload(db_models.Project.bids).joinedload(db_models.Bid.contractor),
         joinedload(db_models.Project.communications).joinedload(db_models.Communication.sender),
+        joinedload(db_models.Project.ratings).joinedload(db_models.Rating.from_user),
+        joinedload(db_models.Project.ratings).joinedload(db_models.Rating.to_user),
         joinedload(db_models.Project.deliverables),
-        joinedload(db_models.Project.client)
+        joinedload(db_models.Project.client),
+        joinedload(db_models.Project.contractor)
     ).filter(db_models.Project.id == project_id).first()
 
     if not db_project:
@@ -286,6 +289,15 @@ def get_project_detail_page(
     bids = sorted(db_project.bids, key=lambda b: b.created_at)
     deliverables = sorted(db_project.deliverables, key=lambda d: d.uploaded_at, reverse=True)
 
+    # 5. 處理評分資訊
+    my_rating = None
+    rating_for_me = None
+    other_party = None
+    if db_project.status == 'completed':
+        my_rating = next((r for r in db_project.ratings if r.from_user_id == user.id), None)
+        rating_for_me = next((r for r in db_project.ratings if r.to_user_id == user.id), None)
+        other_party = db_project.contractor if user.role == 'client' else db_project.client
+
     # 5. 傳遞 unread_count
     my_project_ids = [p.id for p in user.projects_created] if user.role == 'client' else [p.id for p in user.projects_assigned]
     unread_count = 0
@@ -303,7 +315,10 @@ def get_project_detail_page(
         "bids": bids,
         "messages": messages,
         "deliverables": deliverables,
-        "unread_count": unread_count
+        "unread_count": unread_count,
+        "my_rating": my_rating,
+        "rating_for_me": rating_for_me,
+        "other_party": other_party
     })
 
 # --- 頁面：編輯專案頁 ---
