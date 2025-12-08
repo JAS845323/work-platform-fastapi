@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}{{ profile_user.username }} 的個人檔案{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 900px; margin: 5rem auto;">
+    <div class="detail-card" style="margin-bottom: 2rem;">
+        <div class="detail-card-body">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <h2 class="page-title" style="margin-bottom: 10px;">{{ profile_user.username }}</h2>
+                    <p class="page-subtitle">
+                        <strong>角色:</strong> {{ '委託人' if profile_user.role == 'client' else '接案人' }}
+                        <span style="margin: 0 10px; color: rgba(255,255,255,0.3);">|</span>
+                        <strong>註冊時間:</strong> {{ profile_user.created_at.strftime('%Y-%m-%d') }}
+                    </p>
+                </div>
+                <div style="text-align: right;">
+                    <h4 style="color: rgba(255,255,255,0.7); font-size: 1rem; margin-bottom: 5px;">綜合評價</h4>
+                    <p style="font-size: 2.5rem; font-weight: 700; color: white; margin-bottom: 0;">
+                        {{ "%.1f"|format(profile_user.average_rating) }}
+                        <small style="font-size: 1rem; color: rgba(255,255,255,0.5);">/ 5.0</small>
+                    </p>
+                    <p style="font-size: 0.8rem; color: rgba(255,255,255,0.5); margin-top: 5px;">
+                        基於 {{ profile_user.rating_count }} 則歷史評價
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="detail-card">
+        <div class="detail-card-body">
+            <h3 class="card-header-title">歷史評價紀錄</h3>
+            <div class="item-list">
+                {% if profile_user.ratings_received %}
+                    {% for rating in profile_user.ratings_received|sort(attribute='created_at', reverse=True) %}
+                    <li style="flex-direction: column; align-items: flex-start; gap: 10px;">
+                        <div style="width: 100%; display: flex; justify-content: space-between;">
+                            <h5 style="margin: 0;">
+                                專案: <a href="/project/{{ rating.project.id }}" style="color: #a1a8ff;">{{ rating.project.title }}</a>
+                            </h5>
+                            <small style="color: rgba(255,255,255,0.5);">{{ rating.created_at.strftime('%Y-%m-%d') }}</small>
+                        </div>
+                        <p style="margin: 0; font-size: 0.9rem;">
+                            <strong>評價者:</strong> 
+                            <a href="/user/{{ rating.from_user.id }}">{{ rating.from_user.username }}</a>
+                        </p>
+                        
+                        <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; width: 100%;">
+                            {% if profile_user.role == 'contractor' %}
+                                <p>產出品質: {{ rating.quality_score }} / 5 | 執行效率: {{ rating.efficiency_score }} / 5 | 合作態度: {{ rating.cooperation_score }} / 5</p>
+                            {% else %}
+                                <p>需求合理性: {{ rating.reasonableness_score }} / 5 | 驗收難度: {{ rating.acceptance_difficulty_score }} / 5 | 合作態度: {{ rating.cooperation_score }} / 5</p>
+                            {% endif %}
+                            
+                            {% if rating.comment %}
+                                <p style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;"><strong>評論:</strong> {{ rating.comment }}</p>
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% endfor %}
+                {% else %}
+                    <li style="text-align: center; justify-content: center;">目前沒有任何評價紀錄。</li>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

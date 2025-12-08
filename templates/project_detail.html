@@ -49,7 +49,9 @@
                 <hr style="border-color: rgba(255,255,255,0.1); margin-bottom: 20px;">
                 <p class="mb-0">
                     <small class="text-muted">發布者：</small>
-                    <span class="fw-medium">{{ project.client.username }}</span>
+                    <a href="/user/{{ project.client.id }}" class="fw-medium" style="color: white; text-decoration: none;">
+                        {{ project.client.username }}
+                    </a>
                     <span class="mx-2 text-muted">|</span>
                     <small class="text-muted">發布於：</small>
                     <span class="fw-medium">{{ project.created_at.strftime('%Y-%m-%d') }}</span>
@@ -105,7 +107,9 @@
                         <li style="flex-direction: column; align-items: flex-start;">
                             <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
                                 <div>
-                                    <h5 style="color: white; font-weight: 600; margin-bottom: 5px;">{{ bid.contractor.username }}</h5>
+                                    <a href="/user/{{ bid.contractor.id }}" style="text-decoration: none;">
+                                        <h5 style="color: white; font-weight: 600; margin-bottom: 5px;">{{ bid.contractor.username }}</h5>
+                                    </a>
                                     <p style="margin: 0;">報價：<strong style="color: #ec644b; font-size: 1.1rem;">${{ "%.0f"|format(bid.bid_amount) }}</strong></p>
                                 </div>
                                 <button class="glass-button btn-success btn-inline-sm" onclick="selectBid({{ bid.id }})">選擇此報價</button>
@@ -237,7 +241,7 @@
                 {# --- 我給對方的評分 --- #}
                 <div style="margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 25px;">
                     <h4 style="font-size: 1.1rem; color: rgba(255,255,255,0.8); margin-bottom: 15px;">
-                        您對 {{ other_party.username }} ({{ '接案人' if other_party.role == 'contractor' else '委託人' }}) 的評分
+                        您對 <a href="/user/{{ other_party.id }}" style="color: inherit;">{{ other_party.username }}</a> ({{ '接案人' if other_party.role == 'contractor' else '委託人' }}) 的評分
                     </h4>
                     {% if my_rating %}
                         {# 如果已經評分，就顯示分數 #}
@@ -298,7 +302,7 @@
                 {# --- 對方給我的評分 --- #}
                 <div>
                     <h4 style="font-size: 1.1rem; color: rgba(255,255,255,0.8); margin-bottom: 15px;">
-                        {{ other_party.username }} 對您的評分
+                        <a href="/user/{{ other_party.id }}" style="color: inherit;">{{ other_party.username }}</a> 對您的評分
                     </h4>
                     {% if rating_for_me %}
                         <div style="font-size: 0.95rem; color: rgba(255,255,255,0.7); line-height: 1.8;">

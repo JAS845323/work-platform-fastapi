@@ -2,6 +2,7 @@
 
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, TIMESTAMP, Enum, NUMERIC, Boolean
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql import func
 from .db import Base  # 從 db.py 匯入 Base
 
@@ -21,6 +22,33 @@ class User(Base):
     bids = relationship("Bid", back_populates="contractor")
     communications_sent = relationship("Communication", back_populates="sender")
     deliverables = relationship("Deliverable", back_populates="contractor")
+    
+    # [延伸二] 評價關聯
+    # 1. 收到的評價
+    ratings_received = relationship("Rating", back_populates="to_user", foreign_keys="[Rating.to_user_id]")
+    # 2. 送出的評價
+    ratings_given = relationship("Rating", back_populates="from_user", foreign_keys="[Rating.from_user_id]")
+
+    @hybrid_property
+    def average_rating(self):
+        # Python 端計算: (score1 + score2 + score3) / 3 的平均
+        if not self.ratings_received:
+            return 0.0
+        total_score = sum((r.score_dim1 + r.score_dim2 + r.score_dim3) / 3.0 for r in self.ratings_received)
+        return total_score / len(self.ratings_received)
+
+    @average_rating.expression
+    def average_rating(cls):
+        # SQL 端計算
+        return func.avg((Rating.score_dim1 + Rating.score_dim2 + Rating.score_dim3) / 3.0).label("average_rating")
+
+    @hybrid_property
+    def rating_count(self):
+        return len(self.ratings_received)
+
+    @rating_count.expression
+    def rating_count(cls):
+        return func.count(Rating.id).label("rating_count")
 
 class Project(Base):
     __tablename__ = "projects"
@@ -112,8 +140,8 @@ class Rating(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     project = relationship("Project", back_populates="ratings")
-    from_user = relationship("User", foreign_keys=[from_user_id])
-    to_user = relationship("User", foreign_keys=[to_user_id])
+    from_user = relationship("User", back_populates="ratings_given", foreign_keys=[from_user_id])
+    to_user = relationship("User", back_populates="ratings_received", foreign_keys=[to_user_id])
 
     # --- Contractor's scores (rated by client) ---
     @property

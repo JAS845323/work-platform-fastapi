@@ -247,13 +247,13 @@ def get_project_detail_page(
 
     # 1. 抓取專案
     db_project = db.query(db_models.Project).options(
-        joinedload(db_models.Project.bids).joinedload(db_models.Bid.contractor),
+        joinedload(db_models.Project.bids).joinedload(db_models.Bid.contractor).load_only(db_models.User.id, db_models.User.username, db_models.User.average_rating, db_models.User.rating_count),
         joinedload(db_models.Project.communications).joinedload(db_models.Communication.sender),
         joinedload(db_models.Project.ratings).joinedload(db_models.Rating.from_user),
         joinedload(db_models.Project.ratings).joinedload(db_models.Rating.to_user),
         joinedload(db_models.Project.deliverables),
-        joinedload(db_models.Project.client),
-        joinedload(db_models.Project.contractor)
+        joinedload(db_models.Project.client).load_only(db_models.User.id, db_models.User.username, db_models.User.role, db_models.User.average_rating, db_models.User.rating_count),
+        joinedload(db_models.Project.contractor).load_only(db_models.User.id, db_models.User.username, db_models.User.role, db_models.User.average_rating, db_models.User.rating_count)
     ).filter(db_models.Project.id == project_id).first()
 
     if not db_project:
@@ -359,6 +359,47 @@ def get_edit_project_page(
         "request": request,
         "user": user,
         "project": db_project,
+        "unread_count": unread_count
+    })
+
+# --- 頁面：使用者個人檔案頁 (含歷史評價) ---
+@app.get(
+    "/user/{user_id_profile}",
+    response_class=HTMLResponse,
+    dependencies=[Depends(get_user_from_session)]
+)
+def get_user_profile_page(
+    user_id_profile: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    # 1. 取得當前登入的使用者
+    current_user_id = request.session.get("user_id")
+    current_user = db.query(db_models.User).filter(db_models.User.id == current_user_id).first()
+
+    # 2. 查詢目標使用者的個人檔案，並預先載入所有收到的評價、給予評價的人、以及評價對應的專案
+    profile_user = db.query(db_models.User).options(
+        joinedload(db_models.User.ratings_received).joinedload(db_models.Rating.from_user),
+        joinedload(db_models.User.ratings_received).joinedload(db_models.Rating.project)
+    ).filter(db_models.User.id == user_id_profile).first()
+
+    if not profile_user:
+        return RedirectResponse(url="/dashboard", status_code=404)
+
+    # 3. 取得未讀訊息數量 (用於導覽列)
+    my_project_ids = [p.id for p in current_user.projects_created] if current_user.role == 'client' else [p.id for p in current_user.projects_assigned]
+    unread_count = 0
+    if my_project_ids:
+        unread_count = db.query(db_models.Communication).filter(
+            db_models.Communication.project_id.in_(my_project_ids),
+            db_models.Communication.sender_id != current_user_id,
+            db_models.Communication.is_read == False
+        ).count()
+
+    return templates.TemplateResponse("user_profile.html", {
+        "request": request,
+        "user": current_user, # 當前登入者
+        "profile_user": profile_user, # 正在查看的個人檔案主人
         "unread_count": unread_count
     })
 
