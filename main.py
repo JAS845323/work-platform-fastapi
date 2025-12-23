@@ -10,6 +10,7 @@ from sqlalchemy import func, case, update
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.exceptions import HTTPException
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.exception_handlers import http_exception_handler
 from dotenv import load_dotenv
 import os
 
@@ -31,6 +32,8 @@ app = FastAPI()
 async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
     if exc.status_code == 404:
         return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+    if exc.status_code == 401:
+        return RedirectResponse(url="/", status_code=303)
     return await http_exception_handler(request, exc)
 
 # -----------------------------------------------
@@ -66,11 +69,11 @@ app.include_router(upload.router, prefix="/api", tags=["API - Upload"])
 def get_user_from_session(request: Request, db: Session = Depends(get_db)):
     user_id = request.session.get("user_id")
     if not user_id:
-        return RedirectResponse(url="/", status_code=303) 
+        raise HTTPException(status_code=401)
     user = db.query(db_models.User).filter(db_models.User.id == user_id).first()
     if not user:
         request.session.clear()
-        return RedirectResponse(url="/", status_code=303)
+        raise HTTPException(status_code=401)
     return True
 
 @app.get("/", response_class=HTMLResponse)

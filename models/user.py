@@ -17,6 +17,7 @@ class User(BaseModel):
 
     class Config:
         from_attributes = True  # 允許 Pydantic 從 SQLAlchemy 物件讀取資料
+        orm_mode = True
 
 # 用於 API "輸入" (建立 User)
 class UserCreate(BaseModel):
