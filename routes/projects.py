@@ -19,6 +19,7 @@ from auth.security import get_current_client, get_current_contractor, get_curren
 
 router = APIRouter()
 
+
 # --- API 1: 建立專案 ---
 @router.post("/", response_model=pydantic_models.Project)
 def create_project(
@@ -30,7 +31,8 @@ def create_project(
         title=project.title,
         description=project.description,
         client_id=current_client.id,
-        deadline=project.deadline # [延伸一] 寫入截止時間
+        deadline=project.deadline,
+        budget=project.budget  # [关键修正] 將預算寫入資料庫
     )
     db.add(db_project)
     db.commit()
