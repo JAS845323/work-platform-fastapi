@@ -138,6 +138,16 @@ def get_dashboard(request: Request, db: Session = Depends(get_db), q: str = None
 
     context["stats"] = stats_data
     return templates.TemplateResponse("dashboard.html", context)
+#--建立專案--
+@app.get("/project/create", response_class=HTMLResponse, dependencies=[Depends(get_user_from_session)])
+def get_project_create_page(request: Request, db: Session = Depends(get_db)):
+    user_id = request.session.get("user_id")
+    user = db.query(db_models.User).filter(db_models.User.id == user_id).first()
+    
+    return templates.TemplateResponse("project_create.html", {
+        "request": request, 
+        "user": user
+    })
 
 # --- 專案詳情頁 ---
 @app.get("/project/{project_id}", response_class=HTMLResponse, dependencies=[Depends(get_user_from_session)])
