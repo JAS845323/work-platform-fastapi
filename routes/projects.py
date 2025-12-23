@@ -358,6 +358,21 @@ def submit_rating(
         comment=rating.comment
     )
     db.add(db_rating)
+    
+    # [新增] 更新被評分者的平均分數與次數
+    db.flush() # 讓新評分生效以便計算
+    
+    avg_score_expr = (db_models.Rating.score_dim1 + db_models.Rating.score_dim2 + db_models.Rating.score_dim3) / 3.0
+    stats = db.query(
+        func.count(db_models.Rating.id),
+        func.avg(avg_score_expr)
+    ).filter(db_models.Rating.to_user_id == to_user_id).first()
+    
+    to_user = db.query(db_models.User).filter(db_models.User.id == to_user_id).first()
+    if to_user and stats:
+        to_user.rating_count = stats[0]
+        to_user.average_rating = float(stats[1]) if stats[1] is not None else 0.0
+
     db.commit()
     db.refresh(db_rating)
     return db_rating

@@ -205,6 +205,15 @@ def get_user_profile_page(user_id_profile: int, request: Request, db: Session = 
 
     if not profile_user: return RedirectResponse(url="/dashboard", status_code=404)
 
+    # [新增] 將評價依照時間倒序排列 (最新的在最上面)，方便查看歷史紀錄
+    if profile_user.ratings_received:
+        profile_user.ratings_received.sort(key=lambda x: x.created_at, reverse=True)
+        
+        # [新增] 即時計算綜合評分，確保個人檔案顯示正確 (解決舊資料可能為 0 的問題)
+        total_score = sum((r.score_dim1 + r.score_dim2 + r.score_dim3) / 3.0 for r in profile_user.ratings_received)
+        profile_user.average_rating = round(total_score / len(profile_user.ratings_received), 1)
+        profile_user.rating_count = len(profile_user.ratings_received)
+
     return templates.TemplateResponse("user_profile.html", {
         "request": request, "user": current_user, "profile_user": profile_user,
         "is_own_profile": (current_user.id == profile_user.id)
