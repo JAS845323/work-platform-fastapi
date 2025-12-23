@@ -1,32 +1,44 @@
 /work-platform-fastapi/
 │
-├── auth/
-│   └── security.py          # (安全) 密碼雜湊、權限檢查 (get_current_user, get_current_client)
+├── .env                  # [機密] 真實環境變數 (不應上傳 GitHub)
+├── .env.example          # [新增] 環境變數範本 (需上傳 GitHub)
+├── .gitignore            # Git 忽略設定檔
+├── main.py               # 程式入口點 (FastAPI App)
+├── requirements.txt      # 套件依賴清單
 │
-├── db/
-│   ├── db.py                # (資料庫) 引擎、Session、Base (連線核心)
-│   └── models.py            # (資料庫) SQLAlchemy ORM 模型 (定義資料表)
+├── auth/                 # 認證模組
+│   └── security.py       # 密碼雜湊、Token 驗證邏輯
 │
-├── models/
-│   ├── bid.py               # (資料) Pydantic 模型 (報價)
-│   ├── communication.py     # (資料) Pydantic 模型 (訊息)
-│   ├── project.py           # (資料) Pydantic 模型 (專案)
-│   └── user.py              # (資料) Pydantic 模型 (使用者)
+├── db/                   # 資料庫模組
+│   ├── db.py             # [已更新] 資料庫連線設定 (讀取 .env)
+│   └── models.py         # [已更新] SQLAlchemy ORM 模型 (含 Enum, Numeric 優化)
 │
-├── routes/
-│   ├── auth.py              # (API) 處理 /api/auth (登入/註冊)
-│   ├── projects.py          # (API) 處理 /api/projects (專案/報價/訊息核心)
-│   └── upload.py            # (API) 處理 /api/.../upload (檔案上傳/刪除)
+├── models/               # Pydantic 資料驗證模型 (Schemas)
+│   ├── bid.py
+│   ├── communication.py
+│   ├── project.py
+│   └── user.py
 │
-├── static/
-│   └── style.css            # (前端) 
+├── routes/               # API路由模組
+│   ├── auth.py           # 登入/註冊 API
+│   ├── projects.py       # 專案相關 API
+│   └── upload.py         # 檔案上傳 API
 │
-└── templates/
-    ├── base.html            # (前端) **基礎樣板** (含導覽列、液態波紋JS、雙時鐘JS)
-    ├── dashboard.html       # (前端) **首頁** (登入後，顯示專案/統計/訊息)
-    ├── landing.html         # (前端) **平台入口** (未登入的介紹頁)
-    ├── login.html           # (前端) 登入表單頁
-    ├── project_create.html  # (前端) 建立專案表單
-    ├── project_detail.html  # (前端) 專案詳情與操作中心
-    ├── project_edit.html    # (前端) 修改專案表單
-    └── register.html        # (前端) 註冊表單
+├── static/               # 靜態資源
+│   └── style.css         # [已更新] 液態玻璃 UI 樣式表 (含 Dropdown 修復)
+│
+├── templates/            # 前端 HTML 模板 (Jinja2)
+│   ├── 404.html          # 商用級 404 頁面
+│   ├── base.html         # 基礎佈局
+│   ├── dashboard.html    # 儀表板
+│   ├── landing.html      # 登陸頁
+│   ├── login.html        # 登入頁
+│   ├── register.html     # 註冊頁
+│   ├── project_create.html
+│   ├── project_detail.html # [已更新] 專案詳情 (含未讀計數修復)
+│   ├── project_edit.html
+│   ├── user_profile.html   # [已更新] 個人檔案 (含雷達圖 JS 修復)
+│   └── info_page.html      # 資訊頁 (FAQ/Privacy/Terms)
+│
+└── uploads/              # 使用者上傳檔案目錄
+    └── (uploaded files...)
