@@ -5,7 +5,7 @@ import shutil
 import uuid
 from datetime import datetime
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile, Request
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
@@ -145,9 +145,9 @@ def select_bid_for_project(
     if not db_project:
         raise HTTPException(status_code=404, detail="Project not found, not owned by you, or already in progress")
 
-    # [延伸一] 檢查是否到達截止時間 (未截止不能決標)
-    if db_project.deadline and datetime.now() < db_project.deadline:
-        raise HTTPException(status_code=400, detail="Cannot select bid before deadline (競標尚未截止，無法決標)")
+    # [已修改] 原本這裡有一段檢查截止時間的程式碼，現在我們把它移除，讓您可以隨時決標！
+    # if db_project.deadline and datetime.now() < db_project.deadline:
+    #     raise HTTPException(status_code=400, detail="Cannot select bid before deadline (競標尚未截止，無法決標)")
 
     db_bid = db.query(db_models.Bid).filter(
         db_models.Bid.id == bid_id,
@@ -161,7 +161,6 @@ def select_bid_for_project(
     db.commit()
     db.refresh(db_project)
     return db_project
-
 # --- API 7: 歷史專案 ---
 @router.get("/mine", response_model=List[pydantic_models.Project])
 def get_my_projects(
@@ -447,3 +446,31 @@ def resolve_issue(
     db_issue.status = 'resolved'
     db.commit()
     return {"message": "Issue resolved"}
+    
+@router.post("/{project_id}/favorite")
+def toggle_favorite(
+    project_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # 從資料庫取得使用者與專案
+    user = db.query(db_models.User).filter(db_models.User.id == user_id).first()
+    project = db.query(db_models.Project).filter(db_models.Project.id == project_id).first()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+        
+    # 檢查是否已收藏：有則移除，無則新增
+    if project in user.favorite_projects:
+        user.favorite_projects.remove(project)
+        is_favorited = False
+    else:
+        user.favorite_projects.append(project)
+        is_favorited = True
+        
+    db.commit()
+    return {"is_favorited": is_favorited}

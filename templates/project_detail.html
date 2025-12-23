@@ -1,310 +1,776 @@
 {% extends "base.html" %}
 
-{% block title %}{{ project.title }}{% endblock %}
+{% block title %}{{ project.title }} | TaskFlow{% endblock %}
 
 {% block content %}
+
+<style>
+    /* ========================================= */
+    /* 1. 基礎高級視覺 (Visual Depth & Tabs)      */
+    /* ========================================= */
+    .depth-effect {
+        border-top: 1px solid rgba(255, 255, 255, 0.4);
+        border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+    }
+
+    /* 玻璃頁籤系統 */
+    .tab-nav-container {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 25px;
+        overflow-x: auto;
+        padding-bottom: 5px; 
+    }
+    .glass-tab-btn {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.6);
+        padding: 12px 25px;
+        border-radius: 50px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .glass-tab-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+        transform: translateY(-2px);
+    }
+    .glass-tab-btn.active {
+        background: rgba(104, 109, 224, 0.6); /* 主色調 */
+        color: white;
+        border-color: rgba(104, 109, 224, 0.8);
+        box-shadow: 0 0 15px rgba(104, 109, 224, 0.4);
+    }
+    .tab-content {
+        display: none; 
+        animation: fadeIn 0.4s ease;
+    }
+    .tab-content.active {
+        display: block; 
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Loading Spinner */
+    .spinner {
+        display: none;
+        width: 18px;
+        height: 18px;
+        border: 2px solid rgba(255,255,255,0.3);
+        border-radius: 50%;
+        border-top-color: #fff;
+        animation: spin 1s ease-in-out infinite;
+        margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn-loading .spinner { display: inline-block; }
+    .btn-loading span { opacity: 0.7; }
+    .btn-loading { pointer-events: none; cursor: wait; }
+
+    /* 統計小卡 */
+    .stat-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 12px;
+        border-radius: 8px;
+        background: rgba(0,0,0,0.2);
+        border: 1px solid rgba(255,255,255,0.05);
+        margin-right: 10px;
+        font-size: 0.85rem;
+        color: rgba(255,255,255,0.8);
+    }
+
+    /* ========================================= */
+    /* 2. Issue Tracker 1:2 佈局系統              */
+    /* ========================================= */
+    .issue-layout-container {
+        display: flex;
+        gap: 20px;
+        height: 650px; /* 固定高度讓內部捲動 */
+    }
+
+    /* 左邊：問題清單 (1等份) */
+    .issue-sidebar {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    /* 右邊：對話區 (2等份) */
+    .issue-main {
+        flex: 2;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* 清單項目 */
+    .issue-list-item {
+        padding: 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+    .issue-list-item:hover {
+        background: rgba(255, 255, 255, 0.05);
+    }
+    .issue-list-item.active {
+        background: rgba(104, 109, 224, 0.15); /* 選中時的背景色 */
+        border-left: 3px solid #686de0;
+    }
+
+    /* Checkbox 樣式 */
+    .issue-checkbox {
+        width: 24px;
+        height: 24px;
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: 0.3s;
+    }
+    .issue-list-item.resolved .issue-checkbox {
+        background: #2dce89;
+        border-color: #2dce89;
+        color: white;
+    }
+    .issue-list-item.resolved .issue-title {
+        text-decoration: line-through;
+        color: rgba(255, 255, 255, 0.4);
+    }
+
+    /* 右側 Header & Body */
+    .issue-chat-header {
+        padding: 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(0, 0, 0, 0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .issue-chat-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+    .issue-empty-state {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: rgba(255, 255, 255, 0.4);
+        text-align: center;
+    }
+
+    /* ========================================= */
+    /* 3. IG 風格對話系統 (通用)                  */
+    /* ========================================= */
+    .chat-box-container {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        padding: 10px 5px;
+    }
+
+    /* IG 對話行 */
+    .chat-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+        max-width: 100%;
+        animation: fadeIn 0.3s ease;
+    }
+
+    /* 對方 (左側) */
+    .chat-row.theirs {
+        justify-content: flex-start;
+    }
+    .chat-row.theirs .chat-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 0.85rem;
+        flex-shrink: 0;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .chat-row.theirs .chat-bubble {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #fff;
+        border-radius: 18px 18px 18px 4px;
+    }
+
+    /* 自己 (右側) */
+    .chat-row.mine {
+        justify-content: flex-end;
+    }
+    .chat-row.mine .chat-avatar {
+        display: none; 
+    }
+    .chat-row.mine .chat-bubble {
+        background: #3797f0;
+        background: linear-gradient(to right, #3797f0, #0064e0);
+        color: white;
+        border-radius: 18px 18px 4px 18px;
+        box-shadow: 0 4px 15px rgba(55, 151, 240, 0.3);
+    }
+
+    /* 氣泡本體 */
+    .chat-bubble {
+        padding: 10px 16px;
+        max-width: 75%;
+        font-size: 0.95rem;
+        line-height: 1.5;
+        word-wrap: break-word;
+        position: relative;
+    }
+
+    .chat-sender-name {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.6);
+        margin-bottom: 4px;
+        display: block;
+        margin-left: 2px;
+    }
+    .chat-time {
+        font-size: 0.7rem;
+        color: rgba(255, 255, 255, 0.5);
+        margin-top: 4px;
+        display: block;
+        text-align: right;
+    }
+    .chat-row.mine .chat-time {
+        color: rgba(255, 255, 255, 0.8);
+    }
+
+    /* 回覆輸入區 (膠囊狀) */
+    .reply-area {
+        margin-top: 15px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 30px; 
+        padding: 6px 8px 6px 20px;
+        display: flex;
+        align-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .reply-area:focus-within {
+        border-color: rgba(104, 109, 224, 0.6);
+        box-shadow: 0 0 0 2px rgba(104, 109, 224, 0.2);
+    }
+
+    /* ========================================= */
+    /* 4. Google Style Star Rating (星星評分)     */
+    /* ========================================= */
+    .rating-section {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 25px;
+        border-radius: 16px;
+        margin-bottom: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .rating-group {
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .rating-label {
+        font-size: 0.95rem;
+        color: rgba(255, 255, 255, 0.8);
+        font-weight: 500;
+    }
+
+    .star-container {
+        display: flex;
+        gap: 5px;
+        cursor: pointer;
+    }
+
+    .star-icon {
+        font-size: 1.2rem;
+        color: rgba(255, 255, 255, 0.2); /* 未選中顏色：暗灰 */
+        transition: all 0.2s ease;
+    }
+
+    /* 選中或懸停時的顏色 (Google 黃) */
+    .star-icon.active, 
+    .star-icon.hover {
+        color: #ffd700;
+        text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+        transform: scale(1.1);
+    }
+</style>
+
 <div class="row g-4 justify-content-center">
     
-    <div class="col-lg-7">
-
-        <script>
+    <div class="col-lg-9"> <script>
             const PROJECT_ID = {{ project.id }};
             const CURRENT_USER_ID = {{ user.id }};
-            // [延伸一] 截止時間變數
             const DEADLINE_STR = "{{ project.deadline }}"; 
-            
-            // [關鍵修正] 將權限判斷轉為 JS 布林值，避免在 Template String 中出錯
             const IS_CLIENT = {{ 'true' if user.role == 'client' else 'false' }};
         </script>
 
-        <div class="detail-card">
+        <div class="detail-card depth-effect" style="margin-bottom: 30px;">
             <div class="detail-card-body">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
-                    <h2 class="page-title" style="margin: 0;">{{ project.title }}</h2>
-                    <span style="padding: 8px 15px; border-radius: 20px; font-weight: 600; font-size: 0.9rem; white-space: nowrap;
-                        {% if project.status == 'open' %} background: rgba(45, 206, 137, 0.2); color: #2dce89; border: 1px solid rgba(45, 206, 137, 0.3);
-                        {% elif project.status == 'in_progress' %} background: rgba(255, 193, 7, 0.2); color: #ffc107; border: 1px solid rgba(255, 193, 7, 0.3);
-                        {% elif project.status == 'completed' %} background: rgba(136, 152, 170, 0.2); color: #8898aa; border: 1px solid rgba(136, 152, 170, 0.3);
-                        {% else %} background: rgba(236, 100, 75, 0.2); color: #ec644b; border: 1px solid rgba(236, 100, 75, 0.3);
-                        {% endif %}">
-                        {% if project.status == 'open' %} 開放中
-                        {% elif project.status == 'in_progress' %} 執行中
-                        {% elif project.status == 'completed' %} 已結案
-                        {% else %} 已退件
-                        {% endif %}
-                    </span>
-                </div>
-                <p class="page-subtitle" style="margin-bottom: 20px;">{{ project.description }}</p>
-                
-                {% if project.deadline and project.status == 'open' %}
-                <div style="margin-bottom: 20px; padding: 15px; background: rgba(236, 100, 75, 0.15); border-radius: 10px; border: 1px solid rgba(236, 100, 75, 0.3); display: flex; align-items: center;">
-                    <i class="fas fa-clock" style="color: #ec644b; font-size: 1.2rem; margin-right: 10px;"></i> 
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
                     <div>
-                        <span style="color: #ec644b; font-weight: bold; display: block; font-size: 0.8rem;">競標截止倒數</span>
-                        <span id="countdown-timer" style="font-size: 1.3rem; font-weight: 700; color: white;">計算中...</span>
-                    </div>
-                </div>
-                {% endif %}
-
-                <hr style="border-color: rgba(255,255,255,0.1); margin-bottom: 20px;">
-                <p class="mb-0">
-                    <small class="text-muted">發布者：</small>
-                    <span class="fw-medium">{{ project.client.username }}</span>
-                    <span class="mx-2 text-muted">|</span>
-                    <small class="text-muted">發布於：</small>
-                    <span class="fw-medium">{{ project.created_at.strftime('%Y-%m-%d') }}</span>
-                </p>
-            </div>
-        </div>
-
-        {% if project.status == 'in_progress' or project.status == 'rejected' %}
-        <div class="detail-card">
-            <div class="detail-card-body">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                    <h3 class="card-header-title" style="margin:0;">問題追蹤 (Issue Tracker)</h3>
-                    
-                    {% if user.id == project.client.id %}
-                    <button class="glass-button btn-inline-sm" onclick="toggleIssueForm()">
-                        <i class="fas fa-plus"></i> 新增問題
-                    </button>
-                    {% endif %}
-                </div>
-                
-                <div id="new-issue-form" style="display:none; margin-bottom:20px; background:rgba(0,0,0,0.2); padding:20px; border-radius:10px;">
-                    <h5 style="margin-bottom: 10px; color: white;">建立新問題</h5>
-                    <input type="text" id="issue-title" class="glass-input" placeholder="請輸入問題標題..." style="margin-bottom:10px;">
-                    <div style="display: flex; gap: 10px;">
-                        <button class="glass-button btn-inline-xs" onclick="createIssue()">送出</button>
-                        <button class="glass-button btn-danger btn-inline-xs" onclick="toggleIssueForm()">取消</button>
-                    </div>
-                </div>
-
-                <div id="issue-list-container">
-                    <p style="text-align:center; color: rgba(255,255,255,0.5);">載入問題列表中...</p>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        {% if user.role == 'client' %}
-            
-            {% if project.status == 'open' %}
-            <div class="detail-card">
-                <div class="detail-card-body" style="text-align: center;">
-                    <h3 class="card-header-title" style="text-align: center;">專案管理</h3>
-                    <p>專案仍在開放中，您可以修改內容或取消專案。</p>
-                    <button class="glass-button btn-warning btn-inline" onclick="editProject({{ project.id }})">修改專案</button>
-                    <button class="glass-button btn-danger btn-inline" onclick="deleteProject()">取消(刪除)專案</button>
-                </div>
-            </div>
-            <div class="detail-card">
-                <div class="detail-card-body">
-                    <h3 class="card-header-title">收到的報價 ({{ bids|length }})</h3>
-                    <ul class="item-list">
-                        {% for bid in bids %}
-                        <li style="flex-direction: column; align-items: flex-start;">
-                            <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <h5 style="color: white; font-weight: 600; margin-bottom: 5px;">{{ bid.contractor.username }}</h5>
-                                    <p style="margin: 0;">報價：<strong style="color: #ec644b; font-size: 1.1rem;">${{ "%.0f"|format(bid.bid_amount) }}</strong></p>
-                                </div>
-                                <button class="glass-button btn-success btn-inline-sm" onclick="selectBid({{ bid.id }})">選擇此報價</button>
-                            </div>
-                            <div style="width: 100%; margin-top: 15px; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px;">
-                                <div style="color: rgba(255,255,255,0.8); margin-bottom: 10px;">{{ bid.proposal_text }}</div>
-                                {% if bid.proposal_file_path %}
-                                <a href="/media/{{ bid.proposal_file_path }}" target="_blank" style="display: inline-flex; align-items: center; color: #686de0; text-decoration: none; font-weight: 500;">
-                                    <i class="fas fa-file-pdf" style="margin-right: 8px; font-size: 1.2rem;"></i> 下載提案計畫書 (PDF)
-                                </a>
+                        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+                            <h1 class="page-title" style="font-size: 2.2rem; margin: 0; font-weight: 700;">{{ project.title }}</h1>
+                            <span style="padding: 6px 15px; border-radius: 20px; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.5px;
+                                {% if project.status == 'open' %} background: rgba(45, 206, 137, 0.2); color: #2dce89; border: 1px solid rgba(45, 206, 137, 0.3);
+                                {% elif project.status == 'in_progress' %} background: rgba(255, 193, 7, 0.2); color: #ffc107; border: 1px solid rgba(255, 193, 7, 0.3);
+                                {% elif project.status == 'completed' %} background: rgba(136, 152, 170, 0.2); color: #8898aa; border: 1px solid rgba(136, 152, 170, 0.3);
+                                {% else %} background: rgba(236, 100, 75, 0.2); color: #ec644b; border: 1px solid rgba(236, 100, 75, 0.3);
+                                {% endif %}">
+                                {% if project.status == 'open' %} ● 開放競標中
+                                {% elif project.status == 'in_progress' %} ● 專案執行中
+                                {% elif project.status == 'completed' %} ● 已結案
+                                {% else %} ● 已退件重審
                                 {% endif %}
-                            </div>
-                        </li>
-                        {% else %}
-                        <li style="text-align: center; justify-content: center;">尚未收到任何報價。</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-            
-            {% elif project.status == 'in_progress' %}
-                {% if deliverables|length > 0 %}
-                <div class="detail-card">
-                    <div class="detail-card-body" style="text-align: center;">
-                        <h3 class="card-header-title" style="text-align: center;">結案管理</h3>
-                        <p>接案人已交付成果。請檢查下方檔案與 Issue 狀態，決定結案或退件。</p>
-                        <div style="display: flex; justify-content: center; gap: 15px;">
-                            <button class="glass-button btn-inline" onclick="updateStatus('completed')">接受結案</button>
-                            <button class="glass-button btn-danger btn-inline" onclick="updateStatus('rejected')">退件 (要求重做)</button>
+                            </span>
                         </div>
-                    </div>
-                </div>
-                {% else %}
-                <div class="detail-card">
-                    <div class="detail-card-body" style="text-align: center;">
-                        <h3 class="card-header-title" style="text-align: center;">專案執行中</h3>
-                        <p>正等待接案人上傳結案檔案...</p>
-                    </div>
-                </div>
-                {% endif %}
-            
-            {% elif project.status == 'rejected' %}
-            <div class="detail-card">
-                <div class="detail-card-body" style="text-align: center;">
-                    <h3 class="card-header-title" style="text-align: center; color: #ec644b;">專案已退件</h3>
-                    <p>您已退回此專案。請等待接案人修正問題並重新上傳檔案。</p>
-                    <p style="font-size: 0.9rem; opacity: 0.7; margin-top: 10px;">(當乙方重新上傳檔案後，此處將自動變回審核介面)</p>
-                </div>
-            </div>
-            {% endif %}
-
-        {% elif user.role == 'contractor' %}
-            {% if project.status == 'open' %}
-            <div class="detail-card">
-                <div class="detail-card-body">
-                    <h3 class="card-header-title">提出您的報價</h3>
-                    <form id="bid-form">
-                        <div class="form-group">
-                            <label for="bid_amount">報價金額</label>
-                            <input type="number" id="bid_amount" name="bid_amount" class="glass-input" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="proposal_file">提案計畫書 (PDF, 必填)</label>
-                            <input type="file" id="proposal_file" name="proposal_file" class="glass-input" accept="application/pdf" required style="padding: 12px;">
-                        </div>
-                        <div class="form-group">
-                            <label for="proposal_text">提案說明 (選填)</label>
-                            <textarea id="proposal_text" name="proposal_text" class="glass-input" rows="3"></textarea>
-                        </div>
-                        <button type="submit" class="glass-button">送出報價</button>
-                    </form>
-                </div>
-            </div>
-            {% elif (project.status == 'in_progress' or project.status == 'rejected') and project.selected_contractor_id == user.id %}
-            <div class="detail-card">
-                <div class="detail-card-body">
-                    <h3 class="card-header-title">上傳/管理結案檔案</h3>
-                    {% if project.status == 'rejected' %}
-                        <div class="error-message" style="display: block; background-color: rgba(236, 100, 75, 0.2); border: 1px solid #ec644b; color: #ffc4c4; padding: 20px; margin-bottom: 20px;">
-                            <h4 style="margin-bottom: 10px; color: #ec644b; font-weight: bold;"><i class="fas fa-exclamation-triangle"></i> 專案已被退件</h4>
-                            <p>委託人對您的交付成果不滿意。請查看上方的「問題追蹤」列表，修正後重新上傳。</p>
-                        </div>
-                    {% endif %}
-                    <form id="upload-form">
-                        <div class="form-group">
-                            <label for="file">選擇檔案</label>
-                            <input type="file" id="file" name="file" class="glass-input" required style="padding: 12px;">
-                        </div>
-                        <button type="submit" class="glass-button">
-                            {% if project.status == 'rejected' %} 上傳修正後的檔案 {% else %} 上傳檔案 {% endif %}
-                        </button>
-                    </form>
-                </div>
-            </div>
-            {% endif %}
-        {% endif %}
-
-        {% if project.status != 'open' and deliverables|length > 0 %}
-        <div class="detail-card">
-            <div class="detail-card-body">
-                <h3 class="card-header-title">交付成果 ({{ deliverables|length }})</h3>
-                <ul class="item-list">
-                {% for file in deliverables %}
-                    <li>
-                        <div style="display: flex; align-items: center;">
-                            <span style="background: #686de0; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 10px; font-weight: bold;">V{{ file.version }}</span>
-                            <a href="/media/{{ file.file_path.replace('uploads/', '') }}" target="_blank">
-                                <i class="fas fa-download" style="margin-right: 10px;"></i> 檔案 (點擊下載)
-                            </a>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <small>{{ file.uploaded_at.strftime('%Y-%m-%d %H:%M') }}</small>
-                            {% if user.role == 'contractor' and (project.status == 'in_progress' or project.status == 'rejected') and file.contractor_id == user.id %}
-                            <button class="glass-button btn-danger btn-inline-xs" onclick="deleteFile({{ file.id }})" style="margin: 0;">刪除</button>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <span class="stat-badge"><i class="fas fa-user-circle" style="margin-right: 6px;"></i> 發布者: {{ project.client.username }}</span>
+                            <span class="stat-badge"><i class="fas fa-calendar-alt" style="margin-right: 6px;"></i> {{ project.created_at.strftime('%Y-%m-%d') }}</span>
+                            {% if project.selected_contractor_id %}
+                            <span class="stat-badge"><i class="fas fa-hammer" style="margin-right: 6px;"></i> 執行者: {{ project.contractor.username }}</span>
                             {% endif %}
                         </div>
-                    </li>
-                {% endfor %}
-                </ul>
+                    </div>
+
+                    {% if project.deadline and project.status == 'open' %}
+                    <div style="text-align: right; background: rgba(236, 100, 75, 0.1); padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(236, 100, 75, 0.3);">
+                        <div style="font-size: 0.8rem; color: #ec644b; font-weight: bold; text-transform: uppercase;">Time Remaining</div>
+                        <div id="countdown-timer" style="font-size: 1.4rem; font-weight: 700; color: white;">計算中...</div>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
-        {% endif %}
 
-        {% if project.status == 'completed' %}
-        <div class="detail-card">
-            <div class="detail-card-body">
-                <h3 class="card-header-title">評價與回饋</h3>
-                <form id="rating-form">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-                        <div>
-                            <label style="display:block; margin-bottom:5px; font-size:0.9rem;">維度一 (1-5)</label>
-                            <input type="number" id="score1" min="1" max="5" class="glass-input" required placeholder="5">
-                        </div>
-                        <div>
-                            <label style="display:block; margin-bottom:5px; font-size:0.9rem;">維度二 (1-5)</label>
-                            <input type="number" id="score2" min="1" max="5" class="glass-input" required placeholder="5">
-                        </div>
-                        <div>
-                            <label style="display:block; margin-bottom:5px; font-size:0.9rem;">維度三 (1-5)</label>
-                            <input type="number" id="score3" min="1" max="5" class="glass-input" required placeholder="5">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>質性評論</label>
-                        <textarea id="rating-comment" class="glass-input" placeholder="請輸入您的評價..." rows="3"></textarea>
-                    </div>
-                    <button type="submit" class="glass-button">送出評價</button>
-                </form>
-            </div>
+        <div class="tab-nav-container">
+            <button class="glass-tab-btn active" onclick="switchTab('overview')">
+                <i class="fas fa-info-circle"></i> 專案概況
+            </button>
+            <button class="glass-tab-btn" onclick="switchTab('execution')">
+                {% if project.status == 'open' %} <i class="fas fa-gavel"></i> 投標管理
+                {% else %} <i class="fas fa-tasks"></i> 執行與交付 {% endif %}
+            </button>
+            {% if project.status != 'open' %}
+            <button class="glass-tab-btn" onclick="switchTab('issues')">
+                <i class="fas fa-bug"></i> 問題追蹤
+            </button>
+            <button class="glass-tab-btn" onclick="switchTab('messages')">
+                <i class="fas fa-comments"></i> 溝通討論
+                {% if unread_count > 0 %}<span style="background:#ec644b; width:8px; height:8px; border-radius:50%; display:inline-block; margin-left:5px;"></span>{% endif %}
+            </button>
+            {% endif %}
         </div>
-        {% endif %}
 
-    </div> 
-    
-    <div class="project-sidebar">
-        {% if project.status != 'open' and (user.id == project.client.id or user.id == project.selected_contractor_id) %}
-        <div class="detail-card">
-            <div class="detail-card-body" style="padding: 0;">
-                <h3 class="card-header-title" style="padding: 30px 30px 0 30px;">專案溝通</h3>
-                <div class="chat-box" id="message-list">
-                    {% for msg in messages %}
-                        <div class="chat-message {% if msg.sender_id == user.id %}is-sender{% endif %}">
-                            <div class="message-bubble">
-                                <strong>{{ msg.sender.username }}</strong> {{ msg.message }}
-                                <small>{{ msg.created_at.strftime('%H:%M') }}</small>
+        <div id="tab-overview" class="tab-content active">
+            <div class="detail-card depth-effect">
+                <div class="detail-card-body">
+                    <h3 class="card-header-title">需求描述</h3>
+                    <p style="font-size: 1.05rem; line-height: 1.8; color: rgba(255,255,255,0.85); white-space: pre-line;">{{ project.description }}</p>
+                    
+                    {% if user.role == 'client' and project.status == 'open' %}
+                    <hr style="border-color: rgba(255,255,255,0.1); margin: 30px 0;">
+                    <div style="text-align: right;">
+                        <button class="glass-button btn-warning btn-inline-sm" onclick="editProject({{ project.id }})"><i class="fas fa-edit"></i> 修改</button>
+                        <button class="glass-button btn-danger btn-inline-sm" onclick="deleteProject()"><i class="fas fa-trash"></i> 刪除</button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if project.status == 'completed' %}
+            <div class="detail-card depth-effect" style="border-left: 4px solid #2dce89;">
+                <div class="detail-card-body">
+                    <h3 class="card-header-title"><i class="fas fa-star" style="color: #ffd700; margin-right: 10px;"></i> 專案結案評分</h3>
+                    
+                    <div class="row" style="display: flex; gap: 30px;">
+                        <div style="flex: 1;">
+                            <h4 style="font-size: 1rem; color: rgba(255,255,255,0.6); margin-bottom: 15px;">您對對方的評價</h4>
+                            {% if my_rating %}
+                                <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 10px;">
+                                    <div style="margin-bottom: 5px;">品質/合理性: <strong style="color: #2dce89;">{{ my_rating.score_dim1 }}</strong></div>
+                                    <div style="margin-bottom: 5px;">效率/配合度: <strong style="color: #2dce89;">{{ my_rating.score_dim2 }}</strong></div>
+                                    <div>溝通態度: <strong style="color: #2dce89;">{{ my_rating.score_dim3 }}</strong></div>
+                                    {% if my_rating.comment %}
+                                    <p style="margin-top: 10px; font-style: italic; opacity: 0.8;">"{{ my_rating.comment }}"</p>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <form id="rating-form">
+                                    <input type="hidden" id="to_user_id" value="{{ other_party.id }}">
+                                    
+                                    <input type="hidden" id="score1" value="0">
+                                    <input type="hidden" id="score2" value="0">
+                                    <input type="hidden" id="score3" value="0">
+
+                                    <div class="rating-section">
+                                        <h4 style="margin-bottom: 20px; color: white; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+                                            <i class="fas fa-edit"></i> 填寫評價
+                                        </h4>
+
+                                        <div class="rating-group">
+                                            <span class="rating-label">品質/合理性</span>
+                                            <div class="star-container" id="stars-1" onmouseleave="resetStars(1)">
+                                                <i class="fas fa-star star-icon" data-val="1" onclick="setRating(1, 1)" onmouseover="highlightStars(1, 1)"></i>
+                                                <i class="fas fa-star star-icon" data-val="2" onclick="setRating(1, 2)" onmouseover="highlightStars(1, 2)"></i>
+                                                <i class="fas fa-star star-icon" data-val="3" onclick="setRating(1, 3)" onmouseover="highlightStars(1, 3)"></i>
+                                                <i class="fas fa-star star-icon" data-val="4" onclick="setRating(1, 4)" onmouseover="highlightStars(1, 4)"></i>
+                                                <i class="fas fa-star star-icon" data-val="5" onclick="setRating(1, 5)" onmouseover="highlightStars(1, 5)"></i>
+                                            </div>
+                                        </div>
+
+                                        <div class="rating-group">
+                                            <span class="rating-label">效率/配合度</span>
+                                            <div class="star-container" id="stars-2" onmouseleave="resetStars(2)">
+                                                <i class="fas fa-star star-icon" data-val="1" onclick="setRating(2, 1)" onmouseover="highlightStars(2, 1)"></i>
+                                                <i class="fas fa-star star-icon" data-val="2" onclick="setRating(2, 2)" onmouseover="highlightStars(2, 2)"></i>
+                                                <i class="fas fa-star star-icon" data-val="3" onclick="setRating(2, 3)" onmouseover="highlightStars(2, 3)"></i>
+                                                <i class="fas fa-star star-icon" data-val="4" onclick="setRating(2, 4)" onmouseover="highlightStars(2, 4)"></i>
+                                                <i class="fas fa-star star-icon" data-val="5" onclick="setRating(2, 5)" onmouseover="highlightStars(2, 5)"></i>
+                                            </div>
+                                        </div>
+
+                                        <div class="rating-group">
+                                            <span class="rating-label">溝通態度</span>
+                                            <div class="star-container" id="stars-3" onmouseleave="resetStars(3)">
+                                                <i class="fas fa-star star-icon" data-val="1" onclick="setRating(3, 1)" onmouseover="highlightStars(3, 1)"></i>
+                                                <i class="fas fa-star star-icon" data-val="2" onclick="setRating(3, 2)" onmouseover="highlightStars(3, 2)"></i>
+                                                <i class="fas fa-star star-icon" data-val="3" onclick="setRating(3, 3)" onmouseover="highlightStars(3, 3)"></i>
+                                                <i class="fas fa-star star-icon" data-val="4" onclick="setRating(3, 4)" onmouseover="highlightStars(3, 4)"></i>
+                                                <i class="fas fa-star star-icon" data-val="5" onclick="setRating(3, 5)" onmouseover="highlightStars(3, 5)"></i>
+                                            </div>
+                                        </div>
+
+                                        <textarea id="rating-comment" class="glass-input" placeholder="寫下您的具體評論 (選填)..." rows="3" style="margin-top: 10px;"></textarea>
+                                        
+                                        <button type="submit" class="glass-button btn-inline-sm" style="margin-top: 15px; width: 100%;">
+                                            送出評價
+                                        </button>
+                                    </div>
+                                </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div id="tab-execution" class="tab-content">
+            
+            {% if project.status == 'open' %}
+                {% if user.role == 'client' %}
+                <div class="detail-card depth-effect">
+                    <div class="detail-card-body">
+                        <h3 class="card-header-title">收到的報價 ({{ bids|length }})</h3>
+                        <ul class="item-list">
+                            {% for bid in bids %}
+                            <li style="flex-direction: column; align-items: flex-start; background: rgba(255,255,255,0.03); padding: 20px; border-radius: 12px; margin-bottom: 15px;">
+                                <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <h5 style="color: white; font-weight: 700; margin-bottom: 5px; font-size: 1.1rem;">{{ bid.contractor.username }}</h5>
+                                        <p style="margin: 0; color: rgba(255,255,255,0.6);">{{ bid.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <div style="font-size: 1.4rem; color: #ec644b; font-weight: 700;">${{ "%.0f"|format(bid.bid_amount) }}</div>
+                                        <button class="glass-button btn-success btn-inline-xs" onclick="selectBid({{ bid.id }})" style="margin-top: 5px;">
+                                            <div class="spinner"></div><span>接受此報價</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <hr style="width: 100%; border-color: rgba(255,255,255,0.1); margin: 15px 0;">
+                                <div style="width: 100%;">
+                                    <p style="color: rgba(255,255,255,0.9); line-height: 1.6;">{{ bid.proposal_text }}</p>
+                                    {% if bid.proposal_file_path %}
+                                    <a href="/media/{{ bid.proposal_file_path }}" target="_blank" class="glass-button btn-inline-xs" style="text-decoration: none; margin-left: 0;">
+                                        <i class="fas fa-file-pdf"></i> 下載提案計畫書
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </li>
+                            {% else %}
+                            <li style="text-align: center; padding: 40px; color: rgba(255,255,255,0.5);">
+                                <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 15px; display: block;"></i>
+                                尚未收到任何報價
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% elif user.role == 'contractor' %}
+                <div class="detail-card depth-effect">
+                    <div class="detail-card-body">
+                        <h3 class="card-header-title">提交您的提案</h3>
+                        <form id="bid-form">
+                            <div class="form-group">
+                                <label><i class="fas fa-dollar-sign"></i> 報價金額</label>
+                                <input type="number" name="bid_amount" class="glass-input" required placeholder="請輸入金額...">
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-file-pdf"></i> 提案計畫書 (PDF)</label>
+                                <input type="file" id="proposal_file" class="glass-input" accept="application/pdf" required>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-pen"></i> 補充說明</label>
+                                <textarea name="proposal_text" class="glass-input" rows="4" placeholder="簡述您的優勢..."></textarea>
+                            </div>
+                            <button type="submit" class="glass-button btn-success">
+                                <div class="spinner"></div><span>確認送出報價</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+            
+            {% else %}
+                
+                {% if deliverables|length > 0 %}
+                <div class="detail-card depth-effect">
+                    <div class="detail-card-body">
+                        <h3 class="card-header-title">已交付檔案 ({{ deliverables|length }})</h3>
+                        <ul class="item-list">
+                        {% for file in deliverables %}
+                            <li style="padding: 15px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+                                <div style="display: flex; align-items: center;">
+                                    <div style="width: 40px; height: 40px; background: rgba(104, 109, 224, 0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-right: 15px;">
+                                        <i class="fas fa-file-archive" style="color: #686de0; font-size: 1.2rem;"></i>
+                                    </div>
+                                    <div>
+                                        <div style="font-weight: 600; color: white;">V{{ file.version }} 交付檔案</div>
+                                        <div style="font-size: 0.8rem; color: rgba(255,255,255,0.5);">{{ file.uploaded_at.strftime('%Y-%m-%d %H:%M') }}</div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 10px;">
+                                    <a href="/media/{{ file.file_path.replace('uploads/', '') }}" target="_blank" class="glass-button btn-inline-xs" style="text-decoration: none;">
+                                        <i class="fas fa-download"></i> 下載
+                                    </a>
+                                    {% if user.role == 'contractor' and project.status in ['in_progress', 'rejected'] and file.contractor_id == user.id %}
+                                    <button class="glass-button btn-danger btn-inline-xs" onclick="deleteFile({{ file.id }})">
+                                        <div class="spinner"></div><span>刪除</span>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if user.role == 'client' and project.status == 'in_progress' %}
+                <div class="detail-card depth-effect" style="border: 1px solid rgba(255, 193, 7, 0.3);">
+                    <div class="detail-card-body" style="text-align: center;">
+                        <h3 class="card-header-title" style="justify-content: center;">驗收管理</h3>
+                        <p style="margin-bottom: 20px;">請確認上方檔案與 Issue 狀態。若一切無誤，請點擊「驗收通過」以結案。</p>
+                        <div style="display: flex; justify-content: center; gap: 20px;">
+                            <button class="glass-button btn-success btn-inline" onclick="updateStatus('completed')">
+                                <div class="spinner"></div><span><i class="fas fa-check"></i> 驗收通過 (結案)</span>
+                            </button>
+                            <button class="glass-button btn-danger btn-inline" onclick="updateStatus('rejected')">
+                                <div class="spinner"></div><span><i class="fas fa-times"></i> 退件 (要求重做)</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if user.role == 'contractor' and project.status in ['in_progress', 'rejected'] %}
+                <div class="detail-card depth-effect">
+                    <div class="detail-card-body">
+                        <h3 class="card-header-title">上傳交付成果</h3>
+                        {% if project.status == 'rejected' %}
+                        <div class="error-message" style="display: block; margin-bottom: 20px;">
+                            <i class="fas fa-exclamation-circle"></i> 專案已被退件，請根據 Issue 修正後重新上傳。
+                        </div>
+                        {% endif %}
+                        <form id="upload-form">
+                            <div style="border: 2px dashed rgba(255,255,255,0.2); padding: 30px; text-align: center; border-radius: 12px; margin-bottom: 20px; transition: 0.3s;" onmouseover="this.style.borderColor='rgba(104, 109, 224, 0.6)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.2)'">
+                                <i class="fas fa-cloud-upload-alt" style="font-size: 3rem; color: rgba(255,255,255,0.3); margin-bottom: 15px;"></i>
+                                <input type="file" id="file" name="file" class="glass-input" required style="width: 100%;">
+                            </div>
+                            <button type="submit" class="glass-button btn-primary">
+                                <div class="spinner"></div><span>上傳檔案</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+
+            {% endif %}
+        </div>
+
+        <div id="tab-issues" class="tab-content">
+            <div class="detail-card depth-effect" style="padding: 0; overflow: hidden;">
+                
+                <div class="issue-layout-container">
+                    
+                    <div class="issue-sidebar">
+                        <div style="padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;">
+                            <h4 style="margin: 0; font-size: 1.1rem; font-weight: 700;">問題清單</h4>
+                            {% if user.id == project.client.id and project.status in ['in_progress', 'rejected'] %}
+                            <button class="glass-button btn-inline-sm" onclick="showNewIssueModal()" style="font-size: 0.8rem; padding: 6px 12px;">
+                                <i class="fas fa-plus"></i> 新增
+                            </button>
+                            {% endif %}
+                        </div>
+                        
+                        <div id="new-issue-input-area" style="display: none; padding: 15px; background: rgba(104, 109, 224, 0.1); border-bottom: 1px solid rgba(255,255,255,0.1);">
+                            <input type="text" id="new-issue-title" class="glass-input" placeholder="輸入問題標題..." style="margin-bottom: 10px; font-size: 0.9rem;">
+                            <div style="display: flex; gap: 5px;">
+                                <button class="glass-button btn-inline-xs" onclick="createIssue(this)" style="width: 100%;">建立</button>
+                                <button class="glass-button btn-danger btn-inline-xs" onclick="hideNewIssueModal()" style="width: auto;">X</button>
                             </div>
                         </div>
-                    {% else %}
-                        <p style="text-align: center;" id="no-message-placeholder">尚未有任何訊息.</p>
-                    {% endfor %}
-                </div>
-                <div class="detail-card-footer">
-                    <form id="message-form" style="display: flex; gap: 10px;">
-                        <input type="text" id="message-input" class="glass-input" style="width: 100%;" placeholder="輸入訊息..." required>
-                        <button type="submit" class="glass-button btn-inline-sm" style="padding: 10px 20px;">傳送</button>
-                    </form>
+
+                        <div id="issue-list-sidebar-content" style="flex: 1; overflow-y: auto;">
+                            <div style="text-align: center; padding: 20px; opacity: 0.5;">載入中...</div>
+                        </div>
+                    </div>
+
+                    <div class="issue-main" id="issue-main-area">
+                        <div class="issue-empty-state">
+                            <i class="fas fa-comments" style="font-size: 3rem; margin-bottom: 15px; opacity: 0.3;"></i>
+                            <p>請從左側點選一個問題<br>開始進行討論與追蹤</p>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
-        {% endif %}
+
+        <div id="tab-messages" class="tab-content">
+            <div class="detail-card depth-effect" style="height: 600px; display: flex; flex-direction: column;">
+                <div class="detail-card-body" style="flex: 1; display: flex; flex-direction: column; padding: 0;">
+                    <div style="padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <h3 class="card-header-title" style="margin: 0;">專案聊天室</h3>
+                    </div>
+                    
+                    <div class="chat-box chat-box-container" id="message-list" style="flex: 1; overflow-y: auto; padding: 20px; background: rgba(0,0,0,0.1);">
+                        {% for msg in messages %}
+                            <div class="chat-row {% if msg.sender_id == user.id %}mine{% else %}theirs{% endif %}">
+                                <div class="chat-avatar">
+                                    {{ msg.sender.username[0].upper() }}
+                                </div>
+                                <div class="chat-bubble">
+                                    {% if msg.sender_id != user.id %}
+                                        <span class="chat-sender-name">{{ msg.sender.username }}</span>
+                                    {% endif %}
+                                    {{ msg.message }}
+                                    <span class="chat-time">{{ msg.created_at.strftime('%H:%M') }}</span>
+                                </div>
+                            </div>
+                        {% else %}
+                            <p style="text-align: center; color: rgba(255,255,255,0.3); margin-top: 50px;">
+                                <i class="far fa-comments" style="font-size: 2rem; display: block; margin-bottom: 10px;"></i>
+                                尚無訊息，開始討論吧！
+                            </p>
+                        {% endfor %}
+                    </div>
+                    
+                    <div style="padding: 20px; background: rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.1);">
+                        <form id="message-form" style="display: flex; gap: 10px;">
+                            <input type="text" id="message-input" class="glass-input" style="width: 100%; border-radius: 25px; padding-left: 20px;" placeholder="輸入訊息..." required>
+                            <button type="submit" class="glass-button btn-inline-sm" style="padding: 0 25px; border-radius: 25px; width: auto;">
+                                <div class="spinner"></div><span><i class="fas fa-paper-plane"></i></span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div> 
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    // 通用 API 呼叫
-    async function apiCall(endpoint, method, body, isFile=false) {
-        const headers = isFile ? {} : { "Content-Type": "application/json" };
-        const payload = isFile ? body : JSON.stringify(body);
-        const response = await fetch(endpoint, { method, headers, body: payload });
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || "API 請求失敗");
+    // --- 1. Tab 切換邏輯 ---
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.glass-tab-btn').forEach(btn => btn.classList.remove('active'));
+        
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+        event.currentTarget.classList.add('active');
+
+        if (tabName === 'issues') {
+            loadIssues();
         }
-        const contentType = response.headers.get("content-type");
-        return (contentType && contentType.indexOf("application/json") !== -1) ? await response.json() : await response.text();
+        if (tabName === 'messages') {
+            const list = document.getElementById("message-list");
+            if(list) setTimeout(() => list.scrollTop = list.scrollHeight, 100);
+        }
     }
 
+    // --- 2. 增強版 API 呼叫 (含 Loading 狀態) ---
+    async function apiCall(endpoint, method, body, isFile=false, btnElement=null) {
+        let originalText = "";
+        if (btnElement) {
+            btnElement.classList.add("btn-loading");
+            const span = btnElement.querySelector('span');
+            if(span) originalText = span.innerText; 
+        }
+
+        try {
+            const headers = isFile ? {} : { "Content-Type": "application/json" };
+            const payload = isFile ? body : JSON.stringify(body);
+            const response = await fetch(endpoint, { method, headers, body: payload });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || "API 請求失敗");
+            }
+            
+            const contentType = response.headers.get("content-type");
+            return (contentType && contentType.indexOf("application/json") !== -1) ? await response.json() : await response.text();
+        } catch (e) {
+            throw e;
+        } finally {
+            if (btnElement) {
+                btnElement.classList.remove("btn-loading");
+            }
+        }
+    }
+
+    // --- 3. 既有邏輯整合 ---
     // 倒數計時
     if (typeof DEADLINE_STR !== 'undefined' && DEADLINE_STR && DEADLINE_STR !== 'None') {
         const deadline = new Date(DEADLINE_STR).getTime();
@@ -312,195 +778,341 @@
             const now = new Date().getTime();
             const dist = deadline - now;
             const el = document.getElementById("countdown-timer");
-            if (dist < 0) { if(el) el.innerHTML = "已截止"; } 
-            else {
-                const d = Math.floor(dist / (1000 * 60 * 60 * 24));
-                const h = Math.floor((dist % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                const m = Math.floor((dist % (1000 * 60 * 60)) / (1000 * 60));
-                if(el) el.innerHTML = `${d}天 ${h}時 ${m}分`;
+            if (el) {
+                if (dist < 0) { el.innerHTML = "已截止"; } 
+                else {
+                    const d = Math.floor(dist / (1000 * 60 * 60 * 24));
+                    const h = Math.floor((dist % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    el.innerHTML = `${d}d ${h}h`; 
+                }
             }
         }, 1000);
     }
 
-    // Issue Tracker 邏輯 (修正載入問題)
-    function toggleIssueForm() {
-        const el = document.getElementById("new-issue-form");
-        if(el) el.style.display = (el.style.display === "none") ? "block" : "none";
+    // --- 4. 星星評分邏輯 (Google Style) ---
+    const currentRatings = { 1: 0, 2: 0, 3: 0 };
+
+    function highlightStars(dim, value) {
+        const stars = document.querySelectorAll(`#stars-${dim} .star-icon`);
+        stars.forEach(star => {
+            const starVal = parseInt(star.dataset.val);
+            if (starVal <= value) {
+                star.classList.add('hover');
+            } else {
+                star.classList.remove('hover');
+            }
+        });
     }
 
-// --- [延伸三] Issue Tracker 渲染邏輯 (含留言討論功能) ---
-    
+    function resetStars(dim) {
+        const stars = document.querySelectorAll(`#stars-${dim} .star-icon`);
+        const savedVal = currentRatings[dim];
+        stars.forEach(star => {
+            star.classList.remove('hover');
+            const starVal = parseInt(star.dataset.val);
+            if (starVal <= savedVal) {
+                star.classList.add('active');
+            } else {
+                star.classList.remove('active');
+            }
+        });
+    }
+
+    function setRating(dim, value) {
+        currentRatings[dim] = value;
+        document.getElementById(`score${dim}`).value = value;
+        const stars = document.querySelectorAll(`#stars-${dim} .star-icon`);
+        stars.forEach(star => {
+            const starVal = parseInt(star.dataset.val);
+            if (starVal <= value) {
+                star.classList.add('active');
+            } else {
+                star.classList.remove('active');
+            }
+        });
+    }
+
+    // ============================================
+    //  5. Issue Tracker 全新核心邏輯 (1:2 佈局)
+    // ============================================
+    let ALL_ISSUES = [];
+    let CURRENT_ISSUE_ID = null;
+
+    // A. 載入並渲染左側清單
     async function loadIssues() {
-        const container = document.getElementById("issue-list-container");
-        if (!container) return;
+        const listContainer = document.getElementById("issue-list-sidebar-content");
+        if (!listContainer) return;
         
         try {
-            // 取得問題列表 (API 會同時回傳 comments)
-            const issues = await apiCall(`/api/projects/${PROJECT_ID}/issues`, "GET");
-            
-            if(issues.length === 0) {
-                container.innerHTML = '<p style="text-align:center; color: rgba(255,255,255,0.5);">目前沒有任何問題。</p>';
-                return;
+            ALL_ISSUES = await apiCall(`/api/projects/${PROJECT_ID}/issues`, "GET");
+            renderIssueSidebar(); 
+
+            // 如果目前有選中的 Issue，刷新右側內容 (同步對話)
+            if (CURRENT_ISSUE_ID) {
+                const issue = ALL_ISSUES.find(i => i.id === CURRENT_ISSUE_ID);
+                if (issue) renderIssueDetail(issue);
             }
-
-            container.innerHTML = issues.map(i => {
-                // 1. 判斷是否顯示「解決」按鈕 (僅甲方且狀態為 open)
-                let resolveBtn = '';
-                if (i.status === 'open' && IS_CLIENT) {
-                    resolveBtn = `<button onclick="resolveIssue(${i.id})" class="glass-button btn-success btn-inline-xs" style="margin-left:10px; padding: 5px 10px;">解決</button>`;
-                }
-
-                // 2. 生成留言列表 HTML
-                const commentsHtml = i.comments.map(c => `
-                    <div style="margin-top: 8px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 6px; border-left: 2px solid rgba(255,255,255,0.3);">
-                        <div style="display:flex; justify-content:space-between; font-size: 0.8rem; color: rgba(255,255,255,0.6); margin-bottom: 2px;">
-                            <span>${c.sender ? c.sender.username : 'Unknown'}</span>
-                            <span>${new Date(c.created_at).toLocaleString()}</span>
-                        </div>
-                        <div style="color: rgba(255,255,255,0.9); font-size: 0.9rem;">${c.content}</div>
-                    </div>
-                `).join('');
-
-                // 3. 生成回覆輸入框 (僅當狀態為 open 時允許回覆)
-                const replyInputHtml = i.status === 'open' ? `
-                    <div style="display:flex; margin-top: 10px; gap: 5px;">
-                        <input type="text" id="reply-input-${i.id}" class="glass-input" style="font-size: 0.9rem; padding: 8px;" placeholder="回覆此問題...">
-                        <button onclick="replyIssue(${i.id})" class="glass-button btn-inline-xs" style="margin:0;">回覆</button>
-                    </div>
-                ` : '<div style="margin-top:10px; font-size:0.8rem; color:rgba(45, 206, 137, 0.8); text-align:center;">此問題已解決，關閉討論。</div>';
-
-                // 4. 組合卡片
-                return `
-                <div style="background:rgba(255,255,255,0.08); padding:20px; margin-bottom:15px; border-radius:12px; border: 1px solid rgba(255,255,255,0.1);">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <div style="display:flex; align-items:center;">
-                            <strong style="font-size:1.1rem; color:white; margin-right: 10px;">${i.title}</strong>
-                            <span style="padding:2px 8px; border-radius:12px; font-size:0.75rem; font-weight:bold; 
-                                ${i.status==='open' ? 'background:rgba(236,100,75,0.2); color:#ec644b;' : 'background:rgba(45,206,137,0.2); color:#2dce89;'}">
-                                ${i.status.toUpperCase()}
-                            </span>
-                        </div>
-                        <div style="display:flex; align-items:center;">
-                            <small style="color:rgba(255,255,255,0.5); margin-right:5px;">建立者: ${i.creator ? i.creator.username : 'Unknown'}</small>
-                            ${resolveBtn}
-                        </div>
-                    </div>
-                    
-                    <hr style="border-color: rgba(255,255,255,0.05); margin: 10px 0;">
-
-                    <div class="issue-comments" style="max-height: 300px; overflow-y: auto;">
-                        ${commentsHtml.length > 0 ? commentsHtml : '<small style="color:rgba(255,255,255,0.3);">暫無討論...</small>'}
-                    </div>
-
-                    ${replyInputHtml}
-                </div>`;
-            }).join('');
-
         } catch (e) {
             console.error(e);
-            container.innerHTML = '<p style="text-align:center; color: #ffc4c4;">載入問題失敗</p>';
+            listContainer.innerHTML = '<p style="text-align:center; padding:20px; color:#ffc4c4;">載入失敗</p>';
         }
     }
 
-    // 新增：回覆問題 (留言)
-    async function replyIssue(issueId) {
-        const input = document.getElementById(`reply-input-${issueId}`);
-        const content = input.value.trim();
+    // B. 渲染左側 Sidebar
+    function renderIssueSidebar() {
+        const container = document.getElementById("issue-list-sidebar-content");
         
-        if (!content) return; // 空值不送出
-
-        try {
-            await apiCall(`/api/projects/issues/${issueId}/comments`, "POST", { content: content });
-            // 清空並重新載入列表以顯示新留言
-            input.value = "";
-            loadIssues(); 
-        } catch (e) {
-            alert(`回覆失敗: ${e.message}`);
+        if(ALL_ISSUES.length === 0) {
+            container.innerHTML = '<div style="text-align:center; padding:30px; opacity:0.5; font-size:0.9rem;">尚無問題</div>';
+            return;
         }
+
+        container.innerHTML = ALL_ISSUES.map(i => {
+            const isResolved = i.status === 'resolved';
+            const isActive = i.id === CURRENT_ISSUE_ID ? 'active' : '';
+            const checkIcon = isResolved ? '<i class="fas fa-check" style="font-size: 0.8rem;"></i>' : '';
+            const resolvedClass = isResolved ? 'resolved' : '';
+
+            return `
+            <div class="issue-list-item ${isActive} ${resolvedClass}" onclick="selectIssue(${i.id})">
+                <div class="issue-checkbox">
+                    ${checkIcon}
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    <div class="issue-title" style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        ${i.title}
+                    </div>
+                    <div style="font-size: 0.75rem; color: rgba(255,255,255,0.4); margin-top: 2px;">
+                        ${isResolved ? '已解決' : '待處理'} • ${i.comments.length} 則留言
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
     }
 
-    async function createIssue() {
-        const title = document.getElementById("issue-title").value;
+    // C. 點擊清單項目 -> 顯示右側詳細
+    function selectIssue(id) {
+        CURRENT_ISSUE_ID = id;
+        renderIssueSidebar(); 
+        const issue = ALL_ISSUES.find(i => i.id === id);
+        if(issue) renderIssueDetail(issue);
+    }
+
+    // D. 渲染右側聊天區 (核心 UI)
+    function renderIssueDetail(i) {
+        const mainArea = document.getElementById("issue-main-area");
+        const isResolved = i.status === 'resolved';
+
+        // Header: 標題與解決按鈕
+        let resolveBtnHtml = '';
+        if (!isResolved && IS_CLIENT) {
+            resolveBtnHtml = `
+                <button onclick="resolveIssue(${i.id}, this)" class="glass-button btn-success btn-inline-xs" style="padding: 6px 15px;">
+                    <i class="fas fa-check"></i> 標記為已解決
+                </button>`;
+        } else if (isResolved) {
+            resolveBtnHtml = `<span style="color:#2dce89; font-weight:bold; font-size:0.9rem;"><i class="fas fa-check-circle"></i> 此問題已解決</span>`;
+        }
+
+        // Chat List (IG Style)
+        const commentsHtml = i.comments.map(c => {
+            const isMine = (c.user_id === CURRENT_USER_ID);
+            const rowClass = isMine ? 'mine' : 'theirs';
+            const initial = c.sender.username.charAt(0).toUpperCase();
+            const nameHtml = isMine ? '' : `<span class="chat-sender-name">${c.sender.username}</span>`;
+
+            return `
+            <div class="chat-row ${rowClass}">
+                <div class="chat-avatar">${initial}</div>
+                <div class="chat-bubble">
+                    ${nameHtml}
+                    <div>${c.content}</div>
+                    <span class="chat-time">${new Date(c.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                </div>
+            </div>`;
+        }).join('');
+
+        // Footer: 回覆輸入框
+        const footerHtml = !isResolved ? `
+            <div style="padding: 15px; border-top: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);">
+                <div class="reply-area" style="margin:0;">
+                    <input type="text" id="reply-input-current" 
+                           style="background:transparent; border:none; color:white; width:100%; outline:none;" 
+                           placeholder="輸入回覆..."
+                           onkeypress="if(event.key === 'Enter') replyCurrentIssue(${i.id}, this.nextElementSibling)">
+                    <button onclick="replyCurrentIssue(${i.id}, this)" class="glass-button btn-primary btn-inline-xs" 
+                            style="margin:0; border-radius: 20px; padding: 6px 20px;">
+                        <div class="spinner"></div><span>傳送</span>
+                    </button>
+                </div>
+            </div>
+        ` : ''; 
+
+        // 組合 HTML
+        mainArea.innerHTML = `
+            <div class="issue-chat-header">
+                <div style="font-weight: 700; font-size: 1.1rem; color: white;">${i.title}</div>
+                ${resolveBtnHtml}
+            </div>
+            <div class="issue-chat-body" id="issue-chat-scroll">
+                ${commentsHtml.length > 0 ? commentsHtml : '<div style="text-align:center; padding:40px; opacity:0.3;">尚無討論訊息</div>'}
+            </div>
+            ${footerHtml}
+        `;
+
+        // 捲動到底部
+        const scrollDiv = document.getElementById("issue-chat-scroll");
+        if(scrollDiv) scrollDiv.scrollTop = scrollDiv.scrollHeight;
+    }
+
+    // E. 互動功能 (新增、解決、回覆)
+    function showNewIssueModal() { document.getElementById('new-issue-input-area').style.display = 'block'; }
+    function hideNewIssueModal() { document.getElementById('new-issue-input-area').style.display = 'none'; }
+
+    async function createIssue(btn) {
+        const input = document.getElementById("new-issue-title");
+        const title = input.value.trim();
         if (!title) return alert("請輸入標題");
+
         try {
-            await apiCall(`/api/projects/${PROJECT_ID}/issues`, "POST", { title });
-            document.getElementById("issue-title").value = "";
-            toggleIssueForm();
-            loadIssues();
+            await apiCall(`/api/projects/${PROJECT_ID}/issues`, "POST", { title }, false, btn);
+            input.value = "";
+            hideNewIssueModal();
+            await loadIssues(); 
+            // 自動選中最新
+            if(ALL_ISSUES.length > 0) selectIssue(ALL_ISSUES[ALL_ISSUES.length - 1].id);
         } catch (e) { alert(e.message); }
     }
-    
-    async function resolveIssue(id) {
-        if(!confirm("確定已解決？")) return;
-        try { await apiCall(`/api/projects/issues/${id}/resolve`, "PUT", {}); loadIssues(); } catch(e) { alert(e.message); }
+
+    async function replyCurrentIssue(id, btn) {
+        const input = document.getElementById("reply-input-current");
+        const content = input.value.trim();
+        if (!content) return;
+        try {
+            await apiCall(`/api/projects/issues/${id}/comments`, "POST", { content: content }, false, btn);
+            input.value = "";
+            loadIssues(); 
+        } catch (e) { alert(e.message); }
     }
 
-    // 初始化
-    document.addEventListener("DOMContentLoaded", () => {
-        if(document.getElementById("issue-list-container")) loadIssues();
-    });
+    async function resolveIssue(id, btn) {
+        if(!confirm("確定標記為「已解決」？這將會更新問題狀態。")) return;
+        try { 
+            await apiCall(`/api/projects/issues/${id}/resolve`, "PUT", {}, false, btn); 
+            await loadIssues(); 
+        } catch(e) { alert(e.message); }
+    }
 
-    // 其他表單處理 (投標、上傳、狀態更新...)
+    // --- 6. 表單與其他事件綁定 ---
     const bidForm = document.getElementById("bid-form");
     if (bidForm) {
         bidForm.addEventListener("submit", async (e) => {
             e.preventDefault();
+            const btn = bidForm.querySelector('button[type="submit"]');
             const formData = new FormData(bidForm);
             const fileInput = document.getElementById("proposal_file");
             if(fileInput.files.length > 0) formData.append("file", fileInput.files[0]);
-            try { await apiCall(`/api/projects/${PROJECT_ID}/bid`, "POST", formData, true); alert("投標成功！"); window.location.reload(); } catch (e) { alert(`失敗: ${e.message}`); }
+            try { await apiCall(`/api/projects/${PROJECT_ID}/bid`, "POST", formData, true, btn); showToast("您的報價已送出！", "success"); window.location.reload(); } catch (e) { alert(e.message); }
         });
-    }
-    
-    async function selectBid(id) {
-        if(!confirm("確定決標？")) return;
-        try { await apiCall(`/api/projects/${PROJECT_ID}/select_bid/${id}`, "POST", {}); window.location.reload(); } catch(e) { alert(e.message); }
-    }
-
-    async function updateStatus(s) {
-        if(!confirm("確定？")) return;
-        try { await apiCall(`/api/projects/${PROJECT_ID}/status`, "POST", { status: s }); window.location.reload(); } catch(e) { alert(e.message); }
     }
 
     const uploadForm = document.getElementById("upload-form");
     if (uploadForm) {
         uploadForm.addEventListener("submit", async (e) => {
             e.preventDefault();
+            const btn = uploadForm.querySelector('button[type="submit"]');
             const fd = new FormData(uploadForm);
-            try { await apiCall(`/api/projects/${PROJECT_ID}/upload`, "POST", fd, true); alert("上傳成功"); window.location.reload(); } catch(e) { alert(e.message); }
+            try { await apiCall(`/api/projects/${PROJECT_ID}/upload`, "POST", fd, true, btn); alert("上傳成功"); window.location.reload(); } catch(e) { alert(e.message); }
         });
     }
-    
-    async function deleteFile(id) { if(confirm("確定刪除？")) try { await apiCall(`/api/deliverable/${id}`, "DELETE", {}); window.location.reload(); } catch(e) { alert(e.message); } }
-    async function deleteProject() { if(confirm("確定刪除？")) try { await apiCall(`/api/projects/${PROJECT_ID}`, "DELETE", {}); window.location.href="/dashboard"; } catch(e) { alert(e.message); } }
-    function editProject(id) { setTimeout(() => { window.location.href = `/project/edit/${id}`; }, 300); }
-    
+
+    // 訊息發送 (優化版：無須刷新頁面)
     const msgForm = document.getElementById("message-form");
     if(msgForm) {
         const list = document.getElementById("message-list");
-        if(list) list.scrollTop = list.scrollHeight;
+        if(list) setTimeout(() => list.scrollTop = list.scrollHeight, 100);
+
         msgForm.addEventListener("submit", async(e)=>{
             e.preventDefault();
-            const val = document.getElementById("message-input").value;
+            const btn = msgForm.querySelector('button[type="submit"]');
+            const input = document.getElementById("message-input");
+            const val = input.value.trim();
+            
             if(!val) return;
-            try { await apiCall(`/api/projects/${PROJECT_ID}/messages`, "POST", {message:val}); window.location.reload(); } catch(e){alert(e.message);}
+
+            try { 
+                const newMsg = await apiCall(`/api/projects/${PROJECT_ID}/messages`, "POST", {message:val}, false, btn); 
+                input.value = "";
+
+                if(list) {
+                    const emptyState = list.querySelector('p');
+                    if(emptyState && emptyState.innerText.includes("尚無訊息")) {
+                        emptyState.remove();
+                    }
+                    const timeStr = new Date(newMsg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    const msgHtml = `
+                    <div class="chat-row mine" style="animation: fadeIn 0.3s ease;">
+                        <div class="chat-avatar"></div>
+                        <div class="chat-bubble">
+                            ${newMsg.message}
+                            <span class="chat-time">${timeStr}</span>
+                        </div>
+                    </div>`;
+                    list.insertAdjacentHTML('beforeend', msgHtml);
+                    list.scrollTop = list.scrollHeight;
+                }
+            } catch(e){ showToast("發送失敗: " + e.message, "error"); }
         });
     }
-    
+
+    // 評分 (支援星星)
     const rForm = document.getElementById("rating-form");
     if(rForm) {
         rForm.addEventListener("submit", async(e)=>{
             e.preventDefault();
+            const btn = rForm.querySelector('button[type="submit"]');
+            
+            const s1 = document.getElementById("score1").value;
+            const s2 = document.getElementById("score2").value;
+            const s3 = document.getElementById("score3").value;
+
+            if(s1 == 0 || s2 == 0 || s3 == 0) {
+                alert("請完成所有維度的星級評分！");
+                return;
+            }
+
             try {
                 await apiCall(`/api/projects/${PROJECT_ID}/rate`, "POST", {
-                    score_dim1: document.getElementById("score1").value,
-                    score_dim2: document.getElementById("score2").value,
-                    score_dim3: document.getElementById("score3").value,
-                    comment: document.getElementById("rating-comment").value
-                });
-                alert("評價成功"); window.location.reload();
+                    score_dim1: s1,
+                    score_dim2: s2,
+                    score_dim3: s3,
+                    comment: document.getElementById("rating-comment").value,
+                    to_user_id: document.getElementById("to_user_id").value
+                }, false, btn);
+                showToast("評價提交成功！", "success"); window.location.reload();
             } catch(e){alert(e.message);}
         });
     }
+
+    async function selectBid(id) {
+        if(!confirm("確定決標？")) return;
+        try { await apiCall(`/api/projects/${PROJECT_ID}/select_bid/${id}`, "POST", {}); window.location.reload(); } catch(e) { alert(e.message); }
+    }
+    
+    async function updateStatus(s) {
+        if(!confirm("確定變更狀態？")) return;
+        try { await apiCall(`/api/projects/${PROJECT_ID}/status`, "POST", { status: s }); window.location.reload(); } catch(e) { alert(e.message); }
+    }
+
+    async function deleteFile(id) { 
+        if(confirm("確定刪除？")) try { await apiCall(`/api/deliverable/${id}`, "DELETE", {}); window.location.reload(); } catch(e) { alert(e.message); } 
+    }
+    
+    async function deleteProject() { 
+        if(confirm("確定刪除？")) try { await apiCall(`/api/projects/${PROJECT_ID}`, "DELETE", {}); window.location.href="/dashboard"; } catch(e) { alert(e.message); } 
+    }
+    
+    function editProject(id) { window.location.href = `/project/edit/${id}`; }
+
 </script>
 {% endblock %}

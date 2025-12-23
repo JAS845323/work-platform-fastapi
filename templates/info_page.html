@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} | TaskFlow{% endblock %}
+
+{% block content %}
+
+<style>
+    /* ========================================= */
+    /* 1. 全局排版強制修正 (Layout Override)      */
+    /* ========================================= */
+    
+    /* 強制覆寫 base.html 的主容器設定，確保佔滿全寬 */
+    .main-container {
+        max-width: 100% !important;
+        padding: 0 !important;
+        width: 100% !important;
+    }
+
+    /* 頁面主 wrapper：負責垂直與水平置中 */
+    .info-page-wrapper {
+        display: flex;
+        justify-content: center; /* 水平置中 */
+        align-items: flex-start; /* 垂直頂部對齊，配合 margin 往下推 */
+        min-height: 100vh;
+        width: 100%;
+        padding-top: 140px; /* 避開導覽列的高度 */
+        padding-bottom: 80px;
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+
+    /* ========================================= */
+    /* 2. 商用級文件卡片 (Professional Card)      */
+    /* ========================================= */
+    .info-card {
+        width: 100%;
+        max-width: 850px; /* 最佳閱讀寬度 */
+        background: rgba(18, 18, 28, 0.75); /* 深色磨砂背景，提升文字對比度 */
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-top: 1px solid rgba(255, 255, 255, 0.15); /* 頂部微光 */
+        border-radius: 24px;
+        backdrop-filter: blur(40px); /* 強力模糊，消除背景雜訊 */
+        -webkit-backdrop-filter: blur(40px);
+        box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5); /* 深邃陰影，增加立體感 */
+        padding: 70px;
+        position: relative;
+    }
+
+    /* 裝飾性光暈 */
+    .info-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 60%;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    }
+
+    /* ========================================= */
+    /* 3. 內容排版系統 (Typography System)        */
+    /* ========================================= */
+    .info-header {
+        text-align: center;
+        margin-bottom: 60px;
+    }
+    
+    .info-title {
+        font-size: 2.6rem;
+        font-weight: 700;
+        color: #ffffff;
+        letter-spacing: 1px;
+        margin-bottom: 15px;
+        text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+    
+    /* 標題下方的漸層裝飾線 */
+    .info-divider {
+        width: 80px;
+        height: 4px;
+        background: linear-gradient(90deg, #686de0, #ec644b);
+        margin: 0 auto;
+        border-radius: 10px;
+        box-shadow: 0 0 15px rgba(104, 109, 224, 0.5);
+    }
+
+    /* 內文樣式 */
+    .info-content {
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 1.1rem;
+        line-height: 1.9;
+        font-weight: 300;
+        text-align: justify; /* 左右對齊，專業感關鍵 */
+    }
+
+    /* 自動美化後端傳來的標籤 */
+    .info-content h3 {
+        font-size: 1.5rem;
+        color: #fff;
+        font-weight: 600;
+        margin-top: 50px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+    }
+    .info-content h3::before {
+        content: '';
+        display: block;
+        width: 6px;
+        height: 24px;
+        background: #686de0; /* 紫色標記 */
+        margin-right: 15px;
+        border-radius: 4px;
+        box-shadow: 0 0 10px rgba(104, 109, 224, 0.4);
+    }
+
+    .info-content h4 {
+        font-size: 1.25rem;
+        color: rgba(255, 255, 255, 0.95);
+        margin-top: 35px;
+        margin-bottom: 12px;
+        font-weight: 600;
+    }
+
+    .info-content p {
+        margin-bottom: 25px;
+    }
+
+    .info-content ul {
+        background: rgba(255, 255, 255, 0.03);
+        padding: 30px 40px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        margin: 30px 0;
+    }
+
+    .info-content li {
+        margin-bottom: 12px;
+        list-style-type: disc; /* 恢復標準樣式，避免跑版 */
+        padding-left: 5px;
+    }
+
+    /* ========================================= */
+    /* 4. 底部操作區 (Button Animation Fix)       */
+    /* ========================================= */
+    .action-footer {
+        margin-top: 70px;
+        padding-top: 40px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        justify-content: center;
+    }
+
+    /* 按鈕容器修正 */
+    .btn-container {
+        position: relative; /* 關鍵：確立定位基準點 */
+        display: inline-block;
+        min-width: 200px;
+    }
+
+    /* 按鈕樣式覆寫 */
+    .back-btn {
+        display: flex !important; /* 強制 Flex 佈局 */
+        justify-content: center;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 32px;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        border-radius: 50px; /* 更圓潤 */
+        overflow: hidden; /* 確保波紋不溢出 */
+    }
+
+    /* 手機版適配 */
+    @media (max-width: 768px) {
+        .info-card {
+            padding: 40px 25px;
+        }
+        .info-title {
+            font-size: 2rem;
+        }
+        .info-content {
+            font-size: 1rem;
+        }
+    }
+</style>
+
+<div class="info-page-wrapper">
+    <div class="info-card">
+        
+        <div class="info-header">
+            <h1 class="info-title">{{ title }}</h1>
+            <div class="info-divider"></div>
+        </div>
+        
+        <div class="info-content">
+            {{ content | safe }}
+        </div>
+
+        <div class="action-footer">
+            <div class="btn-container">
+                <a href="/" class="glass-button back-btn">
+                    <i class="fas fa-arrow-left"></i> 
+                    <span>返回首頁</span>
+                </a>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+{% endblock %}

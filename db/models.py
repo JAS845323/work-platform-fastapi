@@ -1,9 +1,17 @@
 # db/models.py
 
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, TIMESTAMP, Enum, NUMERIC, Boolean
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, TIMESTAMP, Enum, NUMERIC, Boolean, Float, Table
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .db import Base  # 從 db.py 匯入 Base
+
+# --- [新增] 收藏關聯表 (多對多) ---
+# 用於記錄使用者收藏了哪些專案
+favorite_association = Table(
+    'favorites', Base.metadata,
+    Column('user_id', Integer, ForeignKey('users.id', ondelete="CASCADE"), primary_key=True),
+    Column('project_id', Integer, ForeignKey('projects.id', ondelete="CASCADE"), primary_key=True)
+)
 
 class User(Base):
     __tablename__ = "users"
@@ -15,12 +23,23 @@ class User(Base):
     role = Column(Enum('client', 'contractor', name='user_role'), nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
-    # 建立關聯
-    projects_created = relationship("Project", back_populates="client", foreign_keys="[Project.client_id]")
-    projects_assigned = relationship("Project", back_populates="contractor", foreign_keys="[Project.selected_contractor_id]")
+    # [優化] 評分統計欄位，用於商用級 Profile 顯示
+    average_rating = Column(Float, default=0.0)
+    rating_count = Column(Integer, default=0)
+
+    # 建立關聯 (已修正原本字串格式的錯誤)
+    projects_created = relationship("Project", back_populates="client", foreign_keys="Project.client_id")
+    projects_assigned = relationship("Project", back_populates="contractor", foreign_keys="Project.selected_contractor_id")
     bids = relationship("Bid", back_populates="contractor")
     communications_sent = relationship("Communication", back_populates="sender")
     deliverables = relationship("Deliverable", back_populates="contractor")
+    
+    # [新增] 收藏功能關聯
+    favorite_projects = relationship("Project", secondary=favorite_association, back_populates="favorited_by_users")
+
+    # 評價關聯
+    ratings_received = relationship("Rating", back_populates="to_user", foreign_keys="Rating.to_user_id")
+    ratings_given = relationship("Rating", back_populates="from_user", foreign_keys="Rating.from_user_id")
 
 class Project(Base):
     __tablename__ = "projects"
@@ -33,8 +52,9 @@ class Project(Base):
     selected_contractor_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
     
-    # [延伸一] 限時競標
+    # 限時競標與預算
     deadline = Column(TIMESTAMP, nullable=True)
+    budget = Column(Float, nullable=True)
 
     # 建立關聯
     client = relationship("User", back_populates="projects_created", foreign_keys=[client_id])
@@ -43,9 +63,10 @@ class Project(Base):
     communications = relationship("Communication", back_populates="project", cascade="all, delete-orphan")
     deliverables = relationship("Deliverable", back_populates="project", cascade="all, delete-orphan")
     
-    # [延伸二 & 三] 關聯
+    # 評價、問題追蹤與收藏關聯
     ratings = relationship("Rating", back_populates="project", cascade="all, delete-orphan")
     issues = relationship("Issue", back_populates="project", cascade="all, delete-orphan")
+    favorited_by_users = relationship("User", secondary=favorite_association, back_populates="favorite_projects")
 
 class Bid(Base):
     __tablename__ = "bids"
@@ -57,7 +78,7 @@ class Bid(Base):
     proposal_text = Column(Text)
     created_at = Column(TIMESTAMP, server_default=func.now())
     
-    # [延伸一] 提案計畫書路徑
+    # 提案計畫書路徑
     proposal_file_path = Column(String(512), nullable=True)
 
     # 建立關聯
@@ -87,14 +108,14 @@ class Deliverable(Base):
     file_path = Column(String(512), nullable=False)
     uploaded_at = Column(TIMESTAMP, server_default=func.now())
     
-    # [延伸一] 版本控管
+    # 版本控管
     version = Column(Integer, default=1, nullable=False)
 
     # 建立關聯
     project = relationship("Project", back_populates="deliverables")
     contractor = relationship("User", back_populates="deliverables")
 
-# --- [延伸二] 評價機制 ---
+# --- 評價機制 ---
 class Rating(Base):
     __tablename__ = "ratings"
 
@@ -103,7 +124,7 @@ class Rating(Base):
     from_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     to_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
-    # 三個維度 (1-5分)
+    # 對應星星評分的三個維度 (1-5分)
     score_dim1 = Column(Integer, nullable=False) 
     score_dim2 = Column(Integer, nullable=False)
     score_dim3 = Column(Integer, nullable=False)
@@ -112,10 +133,10 @@ class Rating(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     project = relationship("Project", back_populates="ratings")
-    from_user = relationship("User", foreign_keys=[from_user_id])
-    to_user = relationship("User", foreign_keys=[to_user_id])
+    from_user = relationship("User", foreign_keys=[from_user_id], back_populates="ratings_given")
+    to_user = relationship("User", foreign_keys=[to_user_id], back_populates="ratings_received")
 
-# --- [延伸三] Issue Tracker ---
+# --- Issue Tracker ---
 class Issue(Base):
     __tablename__ = "issues"
 

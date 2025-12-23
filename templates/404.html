@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}頁面未找到 | TaskFlow{% endblock %}
+
+{% block content %}
+<div style="min-height: 80vh; display: flex; align-items: center; justify-content: center; text-align: center;">
+    <div class="glass-card" style="padding: 60px; max-width: 600px; border: 1px solid rgba(255,255,255,0.1);">
+        <div style="font-size: 8rem; font-weight: 900; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 20px;">
+            404
+        </div>
+        <h2 style="color: white; margin-bottom: 15px;">迷路了嗎？</h2>
+        <p style="color: rgba(255,255,255,0.6); font-size: 1.1rem; margin-bottom: 40px;">
+            很抱歉，您尋找的頁面似乎已經漂流到外太空了。
+        </p>
+        <a href="/" class="glass-button btn-primary" style="display: inline-flex; align-items: center; gap: 10px;">
+            <i class="fas fa-home"></i> 返回首頁
+        </a>
+    </div>
+</div>
+{% endblock %}

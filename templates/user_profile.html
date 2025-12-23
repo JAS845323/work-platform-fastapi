@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}{{ profile_user.username }} 的個人檔案{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+    /* Profile 專屬樣式 */
+    .profile-header {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+        margin-bottom: 40px;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 40px;
+        border-radius: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(20px);
+    }
+    
+    .big-avatar {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3rem;
+        font-weight: 700;
+        color: white;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        border: 4px solid rgba(255,255,255,0.1);
+    }
+
+    .profile-info h1 {
+        margin: 0 0 10px 0;
+        font-size: 2.5rem;
+        color: white;
+    }
+    
+    .role-badge {
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        background: rgba(104, 109, 224, 0.2);
+        color: #a1a8ff;
+        border: 1px solid rgba(104, 109, 224, 0.4);
+    }
+
+    /* 佈局：左圖表，右列表 */
+    .profile-grid {
+        display: grid;
+        grid-template-columns: 1fr 2fr;
+        gap: 30px;
+    }
+
+    .chart-card {
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 20px;
+        padding: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        height: fit-content;
+    }
+
+    /* 評論卡片 */
+    .review-card {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        transition: transform 0.2s;
+    }
+    .review-card:hover {
+        background: rgba(255, 255, 255, 0.06);
+        transform: translateY(-3px);
+    }
+
+    @media (max-width: 900px) {
+        .profile-grid { grid-template-columns: 1fr; }
+        .profile-header { flex-direction: column; text-align: center; }
+    }
+</style>
+
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        
+        <div class="profile-header">
+            <div class="big-avatar">
+                {{ profile_user.username[0].upper() }}
+            </div>
+            <div class="profile-info">
+                <h1>{{ profile_user.username }}</h1>
+                <div>
+                    <span class="role-badge">
+                        <i class="fas fa-user-tag"></i> {{ '委託人 (Client)' if profile_user.role == 'client' else '接案專家 (Contractor)' }}
+                    </span>
+                    <span style="color: rgba(255,255,255,0.5); margin-left: 15px;">
+                        <i class="far fa-calendar-alt"></i> 加入於 {{ profile_user.created_at.strftime('%Y-%m-%d') }}
+                    </span>
+                </div>
+            </div>
+            <div style="margin-left: auto; text-align: right;">
+                <div style="font-size: 3rem; font-weight: 700; color: #ffd700;">
+                    {{ "%.1f"|format(profile_user.average_rating) }}
+                </div>
+                <div style="color: rgba(255,255,255,0.6);">綜合評分</div>
+            </div>
+        </div>
+
+        <div class="profile-grid">
+            
+            <div>
+                <div class="chart-card">
+                    <h4 style="color: white; text-align: center; margin-bottom: 20px;">
+                        <i class="fas fa-chart-radar"></i> 能力分析
+                    </h4>
+                    <div style="position: relative; height: 250px; width: 100%;">
+                        <canvas id="skillsRadar"></canvas>
+                    </div>
+                    <p style="text-align: center; font-size: 0.8rem; color: rgba(255,255,255,0.4); margin-top: 15px;">
+                        基於 {{ profile_user.rating_count }} 筆歷史評價數據
+                    </p>
+                </div>
+            </div>
+
+            <div>
+                <h3 style="color: white; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+                    歷史評價紀錄
+                </h3>
+                
+                {% if profile_user.ratings_received %}
+                    
+                    {% set ns = namespace(d1=0, d2=0, d3=0, count=0) %}
+                    {% for r in profile_user.ratings_received %}
+                        {% set ns.d1 = ns.d1 + r.score_dim1 %}
+                        {% set ns.d2 = ns.d2 + r.score_dim2 %}
+                        {% set ns.d3 = ns.d3 + r.score_dim3 %}
+                        {% set ns.count = ns.count + 1 %}
+                    {% endfor %}
+                    
+                    <script>
+                        const AVG_SCORES = [
+                            {{ (ns.d1 / ns.count) if ns.count > 0 else 0 }},
+                            {{ (ns.d2 / ns.count) if ns.count > 0 else 0 }},
+                            {{ (ns.d3 / ns.count) if ns.count > 0 else 0 }}
+                        ];
+                    </script>
+
+                    {% for rating in profile_user.ratings_received|sort(attribute='created_at', reverse=True) %}
+                    <div class="review-card">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                            <strong style="color: #a1a8ff; font-size: 1.1rem;">{{ rating.project.title }}</strong>
+                            <small style="color: rgba(255,255,255,0.4);">{{ rating.created_at.strftime('%Y-%m-%d') }}</small>
+                        </div>
+                        
+                        <div style="display: flex; gap: 15px; margin-bottom: 10px; font-size: 0.85rem; color: rgba(255,255,255,0.7);">
+                            <span>品質: <i class="fas fa-star" style="color: #ffd700;"></i> {{ rating.score_dim1 }}</span>
+                            <span>效率: <i class="fas fa-star" style="color: #ffd700;"></i> {{ rating.score_dim2 }}</span>
+                            <span>態度: <i class="fas fa-star" style="color: #ffd700;"></i> {{ rating.score_dim3 }}</span>
+                        </div>
+
+                        {% if rating.comment %}
+                        <p style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; font-style: italic; color: rgba(255,255,255,0.9);">
+                            "{{ rating.comment }}"
+                        </p>
+                        {% endif %}
+                        
+                        <div style="text-align: right; font-size: 0.8rem; color: rgba(255,255,255,0.4); margin-top: 5px;">
+                            by {{ rating.from_user.username }}
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                {% else %}
+                    <div style="text-align: center; padding: 40px; color: rgba(255,255,255,0.4);">
+                        <i class="far fa-folder-open" style="font-size: 3rem; margin-bottom: 15px;"></i>
+                        <br>目前沒有任何評價紀錄。
+                    </div>
+                    <script>const AVG_SCORES = [0, 0, 0];</script>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('skillsRadar');
+        
+        // 確保畫布存在才執行
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['品質/合理性', '效率/配合度', '溝通態度'],
+                    datasets: [{
+                        label: '能力值',
+                        data: AVG_SCORES, // 這是從上面 Jinja2 算出來的變數
+                        backgroundColor: 'rgba(104, 109, 224, 0.2)',
+                        borderColor: '#686de0',
+                        pointBackgroundColor: '#fff',
+                        pointBorderColor: '#686de0',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: '#686de0',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            // === 強制設定刻度 0 到 5 ===
+                            min: 0,
+                            max: 5,
+                            beginAtZero: true,
+                            // ========================
+                            
+                            angleLines: { color: 'rgba(255, 255, 255, 0.1)' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            pointLabels: {
+                                color: 'rgba(255, 255, 255, 0.8)',
+                                font: { size: 12 }
+                            },
+                            ticks: { 
+                                display: false, // 隱藏數字讓畫面更乾淨
+                                stepSize: 1 
+                            } 
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false } // 隱藏圖例
+                    }
+                }
+            });
+        } // 關閉 if (ctx)
+    }); // 關閉 addEventListener
+</script>
+{% endblock %}

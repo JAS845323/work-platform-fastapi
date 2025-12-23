@@ -1,173 +1,364 @@
 {% extends "base.html" %}
 
-{% block title %}首頁 - TaskFlow{% endblock %}
+{% block title %}儀表板 | TaskFlow{% endblock %}
 
 {% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<div class="project-grid">
+<style>
+    /* 儀表板專屬佈局 */
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: 2.5fr 1fr;
+        gap: 30px;
+    }
+    
+    /* 左側：專案主區 */
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-bottom: 25px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    .welcome-title {
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0;
+        background: linear-gradient(90deg, #fff, #a5a5a5);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .welcome-sub {
+        color: rgba(255,255,255,0.6);
+        font-size: 0.95rem;
+        margin-top: 5px;
+    }
 
-    <div class="project-main-content">
+    /* 右側：數據卡片 */
+    .stats-card {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 20px;
+        padding: 25px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        margin-bottom: 30px;
+    }
+    .chart-container {
+        position: relative;
+        height: 200px;
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    /* 專案卡片優化 */
+    .project-card-row {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        position: relative;
+    }
+    .project-card-row:hover {
+        background: rgba(255, 255, 255, 0.08);
+        transform: translateX(5px);
+        border-left: 4px solid #686de0;
+    }
+    
+    /* 狀態燈號 */
+    .status-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 6px;
+    }
+    .bg-green { background: #2dce89; box-shadow: 0 0 8px rgba(45, 206, 137, 0.4); }
+    .bg-yellow { background: #ffc107; box-shadow: 0 0 8px rgba(255, 193, 7, 0.4); }
+    .bg-red { background: #ec644b; box-shadow: 0 0 8px rgba(236, 100, 75, 0.4); }
+    .bg-gray { background: #8898aa; }
+
+    /* [新增] 搜尋框樣式 */
+    .search-bar {
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 30px;
+        padding: 8px 20px;
+        display: flex;
+        align-items: center;
+        width: 300px;
+        transition: 0.3s;
+    }
+    .search-bar:focus-within {
+        border-color: rgba(104, 109, 224, 0.5);
+        background: rgba(255,255,255,0.1);
+    }
+    .search-bar input {
+        background: transparent;
+        border: none;
+        color: white;
+        width: 100%;
+        margin-left: 10px;
+        outline: none;
+    }
+
+    /* [新增] 愛心收藏按鈕樣式 */
+    .fav-btn {
+        background: transparent;
+        border: none;
+        color: rgba(255,255,255,0.3);
+        font-size: 1.2rem;
+        cursor: pointer;
+        transition: 0.3s;
+        padding: 5px;
+        z-index: 2; /* 確保在連結之上 */
+    }
+    .fav-btn:hover { transform: scale(1.2); }
+    .fav-btn.active { color: #ec644b; text-shadow: 0 0 10px rgba(236, 100, 75, 0.4); }
+
+    @media (max-width: 992px) {
+        .dashboard-grid { grid-template-columns: 1fr; }
+        .stats-card { order: -1; }
+        .search-bar { width: 100%; }
+    }
+</style>
+
+<div class="dashboard-grid">
+    
+    <div class="main-content">
+        
+        <div class="section-header">
+            <div>
+                <h1 class="welcome-title">早安，{{ user.username }}</h1>
+                <p class="welcome-sub">
+                    {% if user.role == 'client' %}
+                        您目前有 {{ my_projects|length }} 個專案正在管理中
+                    {% else %}
+                        準備好接受新的挑戰了嗎？
+                    {% endif %}
+                </p>
+            </div>
+
+            <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                <form action="/dashboard" method="get" class="search-bar">
+                    <i class="fas fa-search" style="color: rgba(255,255,255,0.5);"></i>
+                    <input type="text" name="q" placeholder="搜尋專案標題..." value="{{ q if q else '' }}">
+                </form>
+
+                {% if user.role == 'client' %}
+                <a href="/project/create" class="glass-button btn-inline-sm btn-primary" style="width: auto;">
+                    <i class="fas fa-plus"></i> 建立專案
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
         {% if user.role == 'client' %}
-            <div class="subheader-container">
+            <h3 style="font-size: 1.1rem; color: #fff; margin-bottom: 20px;">
+                <i class="fas fa-folder-open" style="color: #686de0; margin-right: 8px;"></i> 我的專案
+            </h3>
+            
+            {% for project in my_projects %}
+            <a href="/project/{{ project.id }}" class="project-card-row">
                 <div>
-                    <h1 class="page-title">我的專案</h1>
-                    <p class="page-subtitle">您目前正在執行或已建立的專案。</p>
-                </div>
-                <a href="/project/create" class="glass-button create-project-btn">
-                    <i class="fas fa-plus"></i> 建立新專案
-                </a>
-            </div>
-
-            <div class="effects-grid">
-                {% for project in my_projects %}
-                <a href="/project/{{ project.id }}" class="effect-card">
-                    <h3 class="card-title">{{ project.title }}</h3>
-                    <p class="card-description">
-                        {{ project.description | truncate(100) }}
-                    </p>
-                    <div class="card-footer">
-                        <span>
-                            {% if project.status == 'open' %}
-                                <span style="color: #2dce89;">● 開放中</span>
-                            {% elif project.status == 'in_progress' %}
-                                <span style="color: #ffc107;">● 執行中</span>
-                            {% elif project.status == 'completed' %}
-                                <span style="color: #8898aa;">● 已結案</span>
-                            {% else %}
-                                <span style="color: #ec644b;">● 已退件</span>
-                            {% endif %}
-                        </span>
-                        <small>{{ project.created_at.strftime('%Y-%m-%d') }}</small>
+                    <h4 style="color: white; margin-bottom: 5px; font-size: 1.1rem;">{{ project.title }}</h4>
+                    <div style="font-size: 0.85rem; color: rgba(255,255,255,0.5);">
+                        {% if project.status == 'open' %}<span class="status-dot bg-green"></span>開放競標中
+                        {% elif project.status == 'in_progress' %}<span class="status-dot bg-yellow"></span>執行中
+                        {% elif project.status == 'completed' %}<span class="status-dot bg-gray"></span>已結案
+                        {% else %}<span class="status-dot bg-red"></span>{{ project.status }}
+                        {% endif %}
+                        <span style="margin: 0 10px;">|</span>
+                        發布於 {{ project.created_at.strftime('%Y-%m-%d') }}
                     </div>
-                </a>
-                {% else %}
-                <div class="effect-card" style="grid-column: 1 / -1;">
-                    <p class="card-description" style="text-align: center; margin-bottom: 0;">
-                        您尚未建立任何專案。
-                    </p>
                 </div>
-                {% endfor %}
+                <div style="text-align: right;">
+                    <i class="fas fa-chevron-right" style="color: rgba(255,255,255,0.2);"></i>
+                </div>
+            </a>
+            {% else %}
+            <div style="text-align: center; padding: 40px; color: rgba(255,255,255,0.4); border: 2px dashed rgba(255,255,255,0.1); border-radius: 16px;">
+                {% if q %} 找不到符合「{{ q }}」的專案 {% else %} 尚未建立任何專案 {% endif %}
             </div>
+            {% endfor %}
 
         {% else %}
-            <div class="header-container">
-                <h1 class="page-title">我承接的專案</h1>
-            </div>
-            <p class="page-subtitle">您目前正在執行或已完成的專案。</p>
-            <div class="effects-grid mb-5">
-                {% for project in my_projects %}
-                <a href="/project/{{ project.id }}" class="effect-card">
-                    <h3 class="card-title">{{ project.title }}</h3>
-                    <p class="card-description">
-                        {{ project.description | truncate(100) }}
-                    </p>
-                    <div class="card-footer">
-                        <span>
-                            {% if project.status == 'in_progress' %}
-                                <span style="color: #ffc107;">● 執行中</span>
-                            {% elif project.status == 'completed' %}
-                                <span style="color: #8898aa;">● 已結案</span>
-                            {% elif project.status == 'rejected' %}
-                                <span style="color: #ec644b;">● 已退件</span>
-                            {% endif %}
-                        </span>
-                        <small>發布者: {{ project.client.username }}</small>
+            <h3 style="font-size: 1.1rem; color: #fff; margin-bottom: 20px;">
+                <i class="fas fa-tasks" style="color: #ffc107; margin-right: 8px;"></i> 我承接的任務
+            </h3>
+            {% for project in my_projects %}
+            <a href="/project/{{ project.id }}" class="project-card-row">
+                <div>
+                    <h4 style="color: white; margin-bottom: 5px;">{{ project.title }}</h4>
+                    <div style="font-size: 0.85rem; color: rgba(255,255,255,0.5);">
+                        {% if project.status == 'in_progress' %}<span class="status-dot bg-yellow"></span>執行中
+                        {% elif project.status == 'completed' %}<span class="status-dot bg-gray"></span>已結案
+                        {% endif %}
+                        <span style="margin: 0 10px;">|</span>
+                        案主: {{ project.client.username }}
                     </div>
-                </a>
-                {% else %}
-                <div class="effect-card" style="grid-column: 1 / -1;">
-                    <p class="card-description" style="text-align: center; margin-bottom: 0;">
-                        您尚未承接任何專案。
-                    </p>
                 </div>
-                {% endfor %}
+                <div style="text-align: right;">
+                    <i class="fas fa-chevron-right" style="color: rgba(255,255,255,0.2);"></i>
+                </div>
+            </a>
+            {% else %}
+            <div style="text-align: center; padding: 20px; color: rgba(255,255,255,0.4);">
+                目前沒有進行中的任務
             </div>
+            {% endfor %}
 
-            <div class="header-container">
-                <h1 class="page-title">開放中的專案</h1>
-            </div>
-            <p class="page-subtitle">這是目前市場上所有開放投標的專案。</p>
+            <h3 style="font-size: 1.1rem; color: #fff; margin: 40px 0 20px 0;">
+                <i class="fas fa-globe" style="color: #2dce89; margin-right: 8px;"></i> 開放競標市場
+            </h3>
             <div class="effects-grid">
                 {% for project in open_projects %}
-                <a href="/project/{{ project.id }}" class="effect-card">
-                    <h3 class="card-title">{{ project.title }}</h3>
-                    <p class="card-description">
-                        {{ project.description | truncate(100) }}
-                    </p>
-                    <div class="card-footer">
-                        <span style="color: rgba(104, 109, 224, 0.8);">
-                            發布者: {{ project.client.username }}
-                        </span>
-                        <small>{{ project.created_at.strftime('%Y-%m-%d') }}</small>
-                    </div>
-                </a>
+                <div class="effect-card" style="padding: 20px; position: relative;">
+                    <button class="fav-btn {% if project in user.favorite_projects %}active{% endif %}" 
+                            onclick="toggleFavorite(event, {{ project.id }}, this)" 
+                            title="收藏專案"
+                            style="position: absolute; top: 15px; right: 15px;">
+                        <i class="fas fa-heart"></i>
+                    </button>
+
+                    <a href="/project/{{ project.id }}" style="text-decoration: none; display: block;">
+                        <h4 style="color: white; margin-bottom: 10px; font-size: 1.1rem; padding-right: 30px;">{{ project.title }}</h4>
+                        <p style="color: rgba(255,255,255,0.6); font-size: 0.9rem; height: 40px; overflow: hidden;">
+                            {{ project.description | truncate(50) }}
+                        </p>
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; font-size: 0.8rem;">
+                            <span style="color: #686de0;">{{ project.client.username }}</span>
+                            <span style="color: #ec644b;">{{ project.created_at.strftime('%m-%d') }}</span>
+                        </div>
+                    </a>
+                </div>
                 {% else %}
-                <div class="effect-card" style="grid-column: 1 / -1;">
-                    <p class="card-description" style="text-align: center; margin-bottom: 0;">
-                        目前沒有開放中的專案。
-                    </p>
+                <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: rgba(255,255,255,0.4);">
+                    {% if q %} 找不到符合「{{ q }}」的公開專案 {% else %} 市場上目前沒有開放的專案 {% endif %}
                 </div>
                 {% endfor %}
             </div>
         {% endif %}
+    </div>
 
-    </div> <div class="project-sidebar">
+    <div class="sidebar">
+        
+        {% if user.role == 'contractor' or stats %}
+        <div class="stats-card">
+            <h4 style="color: #fff; margin-bottom: 20px; text-align: center;">專案狀態分佈</h4>
+            <div class="chart-container">
+                <canvas id="statusChart"></canvas>
+            </div>
+            <div style="display: flex; justify-content: center; gap: 15px; margin-top: 20px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #ffc107;">{{ stats.in_progress }}</div>
+                    <div style="font-size: 0.7rem; color: rgba(255,255,255,0.5);">進行中</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #2dce89;">{{ stats.completed }}</div>
+                    <div style="font-size: 0.7rem; color: rgba(255,255,255,0.5);">已完成</div>
+                </div>
+                {% if user.role == 'contractor' %}
+                <div style="text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #686de0;">{{ stats.open }}</div>
+                    <div style="font-size: 0.7rem; color: rgba(255,255,255,0.5);">市場機會</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
 
         <div class="detail-card">
-            <div class="detail-card-body">
-                <div class="card-header-title">
-                    <span><i class="fas fa-envelope" style="margin-right: 10px; color: rgba(255,255,255,0.5);"></i> 最近訊息</span>
-                    <a href="/dashboard" class="refresh-btn">
-                        <i class="fas fa-sync-alt"></i>
-                    </a>
-                </div>
+            <div class="detail-card-body" style="padding: 20px;">
+                <h4 style="color: #fff; margin-bottom: 15px; font-size: 1rem;">
+                    <i class="fas fa-comment-dots" style="color: #ec644b; margin-right: 8px;"></i> 最近訊息
+                </h4>
                 <div class="message-list">
                     {% for msg in recent_messages %}
                     <a href="/project/{{ msg.project.id }}" class="message-list-item {% if not msg.is_read %}unread{% endif %}">
                         <div class="message-header">
-                            {{ msg.sender.username }} - {{ msg.project.title | truncate(15) }}
+                            {{ msg.sender.username }} <span style="font-weight: 400; color: rgba(255,255,255,0.4); margin-left: 5px;">於 {{ msg.project.title[:10] }}...</span>
                         </div>
-                        <p class="message-preview">
-                            {{ msg.message | truncate(30) }}
-                        </p>
-                        <small class="message-time">{{ msg.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                        <p class="message-preview">{{ msg.message }}</p>
                     </a>
                     {% else %}
-                    <div style="text-align: center; padding: 20px 0;">沒有新的訊息。</div>
+                    <div style="text-align: center; color: rgba(255,255,255,0.3); font-size: 0.9rem;">無新訊息</div>
                     {% endfor %}
                 </div>
             </div>
         </div>
 
-        {% if user.role == 'contractor' and stats %}
-        <div class="detail-card">
-            <div class="detail-card-body">
-                <div class="card-header-title">
-                    <span><i class="fas fa-chart-bar" style="margin-right: 10px; color: rgba(255,255,255,0.5);"></i> 數據統計</span>
-                    <a href="/dashboard" class="refresh-btn">
-                        <i class="fas fa-sync-alt"></i>
-                    </a>
-                </div>
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <div class="stat-value">{{ stats.in_progress }}</div>
-                        <div class="stat-label">進行中專案</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value">{{ stats.completed }}</div>
-                        <div class="stat-label">已完成專案</div>
-                    </div>
-                    <div class="stat-item full-width">
-                        <div class="stat-value">{{ stats.open }}</div>
-                        <div class="stat-label">等待報價</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
+    </div>
+</div>
 
-    </div> </div> {% endblock %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('statusChart');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['進行中', '已完成', '其他'],
+                    datasets: [{
+                        data: [{{ stats.in_progress }}, {{ stats.completed }}, {{ stats.open }}],
+                        backgroundColor: [
+                            'rgba(255, 193, 7, 0.8)',  // 黃 (進行中)
+                            'rgba(45, 206, 137, 0.8)', // 綠 (完成)
+                            'rgba(104, 109, 224, 0.4)' // 紫 (其他/開放)
+                        ],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '75%', // 甜甜圈厚度
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+    });
 
+    // [新增] 收藏功能邏輯
+    async function toggleFavorite(event, projectId, btn) {
+        event.stopPropagation(); // 阻止事件冒泡到父層 a 標籤
+        event.preventDefault(); // 阻止 a 標籤跳轉
 
-{% block scripts %}
+        try {
+            const response = await fetch(`/api/projects/${projectId}/favorite`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.is_favorited) {
+                    btn.classList.add('active');
+                    if (window.showToast) showToast('已加入我的收藏', 'success');
+                } else {
+                    btn.classList.remove('active');
+                    if (window.showToast) showToast('已從收藏中移除', 'info');
+                }
+            } else {
+                if (window.showToast) showToast('操作失敗，請稍後再試', 'error');
+            }
+        } catch (e) {
+            console.error('收藏請求錯誤:', e);
+            if (window.showToast) showToast('網路連線錯誤', 'error');
+        }
+    }
+</script>
 {% endblock %}

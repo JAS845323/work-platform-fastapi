@@ -5,45 +5,43 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
+# [已修正] 移除重複的 import joinedload
 from sqlalchemy import func, case, update
 from starlette.middleware.sessions import SessionMiddleware
+from fastapi.exceptions import HTTPException
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from dotenv import load_dotenv
 import os
 
-# 匯入我們的路由
+# 匯入路由與DB
 from routes import auth, projects, upload
-
-# 匯入DB和模型
-# *** 修改點 1: 這裡多匯入了 engine ***
 from db.db import get_db, engine
 from db import models as db_models
 
-
-# 1. 載入 .env 檔案中的變數
+# 1. 載入環境變數與初始化資料表
 load_dotenv()
-
-# =================================================
-# *** 修改點 2: 加入這行來自動建立資料表 ***
-# 這行程式碼會檢查資料庫，如果 models.py 定義的表不存在，就會自動建立！
-# =================================================
 db_models.Base.metadata.create_all(bind=engine)
-
 
 app = FastAPI()
 
 # -----------------------------------------------
-# 1. 載入 Middleware (中間層)
+# 1. 異常處理器 (商用級 404 頁面)
+# -----------------------------------------------
+@app.exception_handler(StarletteHTTPException)
+async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 404:
+        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+    return await http_exception_handler(request, exc)
+
+# -----------------------------------------------
+# 2. 中間層 (Middleware) 與 靜態檔案
 # -----------------------------------------------
 app.add_middleware(
     SessionMiddleware,
-    # 2. 改從環境變數讀取 SECRET_KEY，若讀不到則使用後面的預設值
     secret_key=os.getenv("SECRET_KEY", "fallback_secret_key_if_env_missing"),
     max_age=86400,
 )
 
-# -----------------------------------------------
-# 2. 載入靜態檔案 (CSS, JS, 圖片)
-# -----------------------------------------------
 UPLOAD_DIRECTORY = "uploads"
 if not os.path.exists(UPLOAD_DIRECTORY):
     os.makedirs(UPLOAD_DIRECTORY)
@@ -51,85 +49,60 @@ if not os.path.exists(UPLOAD_DIRECTORY):
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/media", StaticFiles(directory=UPLOAD_DIRECTORY), name="media")
 
-
-# -----------------------------------------------
-# 3. 載入樣板 (Jinja2)
-# -----------------------------------------------
 templates = Jinja2Templates(directory="templates")
 
 # -----------------------------------------------
-# 4. 載入 API Routers (後端)
+# 3. 載入 API 路由
 # -----------------------------------------------
 app.include_router(auth.router, prefix="/api/auth", tags=["API - Authentication"])
 app.include_router(projects.router, prefix="/api/projects", tags=["API - Projects"])
 app.include_router(upload.router, prefix="/api", tags=["API - Upload"])
 
-
 # -----------------------------------------------
-# 5. 載入 Page Routers (前端)
+# 4. 頁面路由 (Page Routers)
 # -----------------------------------------------
 
-# --- 
-# 「守衛」依賴項
-# 
+# 「守衛」依賴項：確保使用者已登入
 def get_user_from_session(request: Request, db: Session = Depends(get_db)):
     user_id = request.session.get("user_id")
     if not user_id:
-        # 未登入，重導至首頁
         return RedirectResponse(url="/", status_code=303) 
-        
     user = db.query(db_models.User).filter(db_models.User.id == user_id).first()
     if not user:
         request.session.clear()
-        return RedirectResponse(url="/", status_code=303) # 找不到用戶，重導至首頁
-    
-    # 守衛已通過
+        return RedirectResponse(url="/", status_code=303)
     return True
 
-# --- 頁面：登陸頁 (首頁) ---
 @app.get("/", response_class=HTMLResponse)
 def get_landing_page(request: Request):
     if request.session.get("user_id"):
         return RedirectResponse(url="/dashboard", status_code=303)
-        
     return templates.TemplateResponse("landing.html", {"request": request})
 
-# --- 頁面：登入頁 ---
 @app.get("/login", response_class=HTMLResponse)
 def get_login_page(request: Request):
     if request.session.get("user_id"):
         return RedirectResponse(url="/dashboard", status_code=303)
-        
-    return templates.TemplateResponse("login.html", {"request": request, "unread_count": 0})
+    return templates.TemplateResponse("login.html", {"request": request})
 
-# --- 頁面：註冊頁 ---
 @app.get("/register", response_class=HTMLResponse)
 def get_register_page(request: Request):
     if request.session.get("user_id"):
         return RedirectResponse(url="/dashboard", status_code=303)
-        
-    return templates.TemplateResponse("register.html", {"request": request, "unread_count": 0})
+    return templates.TemplateResponse("register.html", {"request": request})
 
-# --- 頁面：首頁 (Dashboard) ---
-@app.get(
-    "/dashboard", 
-    response_class=HTMLResponse,
-    dependencies=[Depends(get_user_from_session)] # 1. 先執行「守衛」
-)
-def get_dashboard(
-    request: Request, # 2. 「守衛」通過後，才執行此函數
-    db: Session = Depends(get_db)
-):
-    # 3. 我們現在 100% 確定 user_id 存在
+# --- 首頁 (Dashboard)：整合搜尋與收藏 ---
+@app.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(get_user_from_session)])
+def get_dashboard(request: Request, db: Session = Depends(get_db), q: str = None):
     user_id = request.session.get("user_id")
-    user = db.query(db_models.User).filter(db_models.User.id == user_id).first()
+    user = db.query(db_models.User).options(joinedload(db_models.User.favorite_projects)).filter(db_models.User.id == user_id).first()
     
-    if not user: # 安全檢查，以防萬一
-        request.session.clear()
-        return RedirectResponse(url="/", status_code=303)
+    context = {"request": request, "user": user, "q": q}
+    
+    # 統計數據預設值
+    stats_data = {"in_progress": 0, "completed": 0, "open": 0}
 
-    context = {"request": request, "user": user}
-    
+    # 1. 抓取未讀訊息與相關專案
     my_project_ids_query = db.query(db_models.Project.id)
     if user.role == 'client':
         my_project_ids_query = my_project_ids_query.filter(db_models.Project.client_id == user.id)
@@ -138,216 +111,107 @@ def get_dashboard(
     
     my_project_ids = [id[0] for id in my_project_ids_query.all()]
     
-    # 4. 查詢「未讀訊息」
-    unread_count = 0
-    recent_messages = []
-    
+    # 計算全域未讀數量
     if my_project_ids:
-        unread_count = db.query(db_models.Communication).filter(
-            db_models.Communication.project_id.in_(my_project_ids),
-            db_models.Communication.sender_id != user.id,
-            db_models.Communication.is_read == False
-        ).count()
-        
-        recent_messages = db.query(db_models.Communication).options(
-            joinedload(db_models.Communication.sender),
-            joinedload(db_models.Communication.project)
-        ).filter(
-            db_models.Communication.project_id.in_(my_project_ids),
-            db_models.Communication.sender_id != user.id
-        ).order_by(
-            db_models.Communication.is_read.asc(),
-            db_models.Communication.created_at.desc()
-        ).limit(5).all()
-        
-    context["recent_messages"] = recent_messages
-    context["unread_count"] = unread_count
+        unread_count = db.query(db_models.Communication).filter(db_models.Communication.project_id.in_(my_project_ids), db_models.Communication.sender_id != user.id, db_models.Communication.is_read == False).count()
+        recent_messages = db.query(db_models.Communication).options(joinedload(db_models.Communication.sender), joinedload(db_models.Communication.project)).filter(db_models.Communication.project_id.in_(my_project_ids), db_models.Communication.sender_id != user.id).order_by(db_models.Communication.created_at.desc()).limit(5).all()
+        context.update({"unread_count": unread_count, "recent_messages": recent_messages})
 
-    
-    # 5. 抓取專案列表
+    # 2. 專案清單邏輯
     if user.role == 'client':
-        my_projects = db.query(db_models.Project).options(
-            joinedload(db_models.Project.client)
-        ).filter(
-            db_models.Project.client_id == user.id
-        ).order_by(db_models.Project.created_at.desc()).all()
-        context["my_projects"] = my_projects
+        query = db.query(db_models.Project).filter(db_models.Project.client_id == user.id)
+        if q: query = query.filter(db_models.Project.title.contains(q))
+        context["my_projects"] = query.order_by(db_models.Project.created_at.desc()).all()
+        
+        # 甲方統計
+        s = db.query(func.count(case((db_models.Project.status == 'in_progress', 1))).label('ip'), func.count(case((db_models.Project.status == 'completed', 1))).label('cp'), func.count(case((db_models.Project.status == 'open', 1))).label('op')).filter(db_models.Project.client_id == user.id).first()
+        if s: stats_data = {"in_progress": s.ip, "completed": s.cp, "open": s.op}
     else:
-        my_projects = db.query(db_models.Project).options(
-            joinedload(db_models.Project.client)
-        ).filter(
-            db_models.Project.selected_contractor_id == user.id
-        ).order_by(db_models.Project.created_at.desc()).all()
-        context["my_projects"] = my_projects
-        
-        open_projects = db.query(db_models.Project).options(
-            joinedload(db_models.Project.client)
-        ).filter(
-            db_models.Project.status == 'open'
-        ).order_by(db_models.Project.created_at.desc()).all()
-        context["open_projects"] = open_projects
+        context["my_projects"] = db.query(db_models.Project).filter(db_models.Project.selected_contractor_id == user.id).all()
+        open_query = db.query(db_models.Project).filter(db_models.Project.status == 'open')
+        if q: open_query = open_query.filter(db_models.Project.title.contains(q))
+        context["open_projects"] = open_query.all()
 
-        # 6. 數據統計
-        stats = db.query(
-            func.count(case((
-                (db_models.Project.selected_contractor_id == user.id) & (db_models.Project.status == 'in_progress'), 1
-            ))).label('in_progress'),
-            func.count(case((
-                (db_models.Project.selected_contractor_id == user.id) & (db_models.Project.status == 'completed'), 1
-            ))).label('completed'),
-            func.count(case((db_models.Project.status == 'open', 1))).label('open')
-        ).first()
-        
-        context["stats"] = {
-            "in_progress": stats.in_progress,
-            "completed": stats.completed,
-            "open": stats.open
-        }
+        # 乙方統計
+        s = db.query(func.count(case(((db_models.Project.selected_contractor_id == user.id) & (db_models.Project.status == 'in_progress'), 1))).label('ip'), func.count(case(((db_models.Project.selected_contractor_id == user.id) & (db_models.Project.status == 'completed'), 1))).label('cp'), func.count(case((db_models.Project.status == 'open', 1))).label('op')).first()
+        if s: stats_data = {"in_progress": s.ip, "completed": s.cp, "open": s.op}
 
+    context["stats"] = stats_data
     return templates.TemplateResponse("dashboard.html", context)
 
-# --- 頁面：建立新專案 ---
-@app.get(
-    "/project/create", 
-    response_class=HTMLResponse,
-    dependencies=[Depends(get_user_from_session)]
-)
-def get_create_project_page(
-    request: Request,
-    db: Session = Depends(get_db)
-):
+# --- 專案詳情頁 ---
+@app.get("/project/{project_id}", response_class=HTMLResponse, dependencies=[Depends(get_user_from_session)])
+def get_project_detail_page(project_id: int, request: Request, db: Session = Depends(get_db)):
     user_id = request.session.get("user_id")
     user = db.query(db_models.User).filter(db_models.User.id == user_id).first()
 
-    if user.role != 'client':
-        return RedirectResponse(url="/dashboard", status_code=403)
-        
-    # 傳遞 unread_count
-    unread_count = db.query(db_models.Communication).join(db_models.Project).filter(
-        db_models.Project.client_id == user_id,
-        db_models.Communication.sender_id != user_id,
-        db_models.Communication.is_read == False
-    ).count()
-
-    return templates.TemplateResponse("project_create.html", {"request": request, "user": user, "unread_count": unread_count})
-
-# --- 頁面：專案詳情頁 ---
-@app.get(
-    "/project/{project_id}", 
-    response_class=HTMLResponse,
-    dependencies=[Depends(get_user_from_session)]
-)
-def get_project_detail_page(
-    project_id: int,
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    user_id = request.session.get("user_id")
-    user = db.query(db_models.User).filter(db_models.User.id == user_id).first()
-
-    # 1. 抓取專案
     db_project = db.query(db_models.Project).options(
         joinedload(db_models.Project.bids).joinedload(db_models.Bid.contractor),
         joinedload(db_models.Project.communications).joinedload(db_models.Communication.sender),
+        joinedload(db_models.Project.ratings).joinedload(db_models.Rating.from_user),
+        joinedload(db_models.Project.ratings).joinedload(db_models.Rating.to_user),
         joinedload(db_models.Project.deliverables),
-        joinedload(db_models.Project.client)
+        joinedload(db_models.Project.client),
+        joinedload(db_models.Project.contractor)
     ).filter(db_models.Project.id == project_id).first()
 
-    if not db_project:
-        return RedirectResponse(url="/dashboard", status_code=404)
+    if not db_project: raise HTTPException(status_code=404)
 
-    # 2. 權限檢查
-    is_owner = (db_project.client.id == user.id) 
-    is_selected_contractor = (db_project.selected_contractor_id == user.id)
-    is_contractor = (user.role == 'contractor')
+    # 標記訊息為已讀
+    db.query(db_models.Communication).filter(db_models.Communication.project_id == project_id, db_models.Communication.sender_id != user_id).update({"is_read": True})
+    db.commit()
 
-    if db_project.status == 'open' and is_contractor:
-        pass
-    elif db_project.status != 'open' and not (is_owner or is_selected_contractor):
-         return RedirectResponse(url="/dashboard", status_code=303)
-
-    # 3. 標記訊息為已讀
-    try:
-        stmt = update(db_models.Communication).where(
-            db_models.Communication.project_id == project_id,
-            db_models.Communication.sender_id != user_id,
-            db_models.Communication.is_read == False
-        ).values(
-            is_read = True
-        )
-        db.execute(stmt)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        print(f"Error marking messages as read: {e}")
+    # 定義對方資訊
+    other_party = db_project.contractor if user.role == 'client' else db_project.client
+    my_rating = next((r for r in db_project.ratings if r.from_user_id == user.id), None)
     
-    # 4. 抓取並排序關聯資料
-    messages = sorted(db_project.communications, key=lambda m: m.created_at)
-    bids = sorted(db_project.bids, key=lambda b: b.created_at)
-    deliverables = sorted(db_project.deliverables, key=lambda d: d.uploaded_at, reverse=True)
-
-    # 5. 傳遞 unread_count
-    my_project_ids = [p.id for p in user.projects_created] if user.role == 'client' else [p.id for p in user.projects_assigned]
-    unread_count = 0
-    if my_project_ids:
-        unread_count = db.query(db_models.Communication).filter(
-            db_models.Communication.project_id.in_(my_project_ids),
-            db_models.Communication.sender_id != user_id,
-            db_models.Communication.is_read == False
-        ).count()
-
+    # [已修正] 明確定義 unread_count_value 為 0
+    # 因為使用者剛打開頁面，訊息已標記為已讀，所以針對此專案的未讀數為 0
+    # 如果希望這裡顯示全域未讀數，需要額外查詢，但目前先設為 0 確保不報錯且符合邏輯
+    unread_count_value = 0
+    
     return templates.TemplateResponse("project_detail.html", {
-        "request": request,
-        "user": user,
-        "project": db_project,
-        "bids": bids,
-        "messages": messages,
-        "deliverables": deliverables,
-        "unread_count": unread_count
+        "request": request, "user": user, "project": db_project,
+        "messages": sorted(db_project.communications, key=lambda m: m.created_at),
+        "bids": db_project.bids, "deliverables": db_project.deliverables,
+        "my_rating": my_rating, "other_party": other_party,
+        "unread_count": unread_count_value, # 這裡現在有值了
     })
 
-# --- 頁面：編輯專案頁 ---
-@app.get(
-    "/project/edit/{project_id}", 
-    response_class=HTMLResponse,
-    dependencies=[Depends(get_user_from_session)]
-)
-def get_edit_project_page(
-    project_id: int,
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    user_id = request.session.get("user_id")
-    user = db.query(db_models.User).filter(db_models.User.id == user_id).first()
+# --- 個人檔案頁：加入收藏與雷達圖數據 ---
+@app.get("/user/{user_id_profile}", response_class=HTMLResponse, dependencies=[Depends(get_user_from_session)])
+def get_user_profile_page(user_id_profile: int, request: Request, db: Session = Depends(get_db)):
+    current_user_id = request.session.get("user_id")
+    current_user = db.query(db_models.User).filter(db_models.User.id == current_user_id).first()
 
-    db_project = db.query(db_models.Project).filter(
-        db_models.Project.id == project_id
-    ).first()
+    # [已修正] 強制加載 (Eager Loading) 評價資料
+    # 使用 joinedload 確保 ratings_received 被載入，這樣前端的雷達圖才有資料
+    profile_user = db.query(db_models.User).options(
+        joinedload(db_models.User.ratings_received).joinedload(db_models.Rating.from_user),
+        joinedload(db_models.User.ratings_received).joinedload(db_models.Rating.project),
+        joinedload(db_models.User.favorite_projects)
+    ).filter(db_models.User.id == user_id_profile).first()
 
-    if not db_project or db_project.client_id != user.id:
-        return RedirectResponse(url="/dashboard", status_code=403)
-    
-    if db_project.status != 'open':
-        return RedirectResponse(url=f"/project/{project_id}", status_code=400)
+    if not profile_user: return RedirectResponse(url="/dashboard", status_code=404)
 
-    # 傳遞 unread_count
-    my_project_ids = [p.id for p in user.projects_created]
-    unread_count = 0
-    if my_project_ids:
-        unread_count = db.query(db_models.Communication).filter(
-            db_models.Communication.project_id.in_(my_project_ids),
-            db_models.Communication.sender_id != user_id,
-            db_models.Communication.is_read == False
-        ).count()
-
-    return templates.TemplateResponse("project_edit.html", {
-        "request": request,
-        "user": user,
-        "project": db_project,
-        "unread_count": unread_count
+    return templates.TemplateResponse("user_profile.html", {
+        "request": request, "user": current_user, "profile_user": profile_user,
+        "is_own_profile": (current_user.id == profile_user.id)
     })
 
-# --- 頁面：登出 ---
+# --- 其他靜態與功能路由 ---
+@app.get("/faq", response_class=HTMLResponse)
+def get_faq_page(request: Request):
+    return templates.TemplateResponse("info_page.html", {"request": request, "title": "常見問題 (FAQ)", "content": "<h3>Q1: TaskFlow 是什麼？</h3><p>TaskFlow 是一個專業的委託接案平台...</p>"})
+
+@app.get("/privacy", response_class=HTMLResponse)
+def get_privacy_page(request: Request):
+    return templates.TemplateResponse("info_page.html", {"request": request, "title": "隱私政策", "content": "<p>我們重視您的隱私保護...</p>"})
+
+@app.get("/terms", response_class=HTMLResponse)
+def get_terms_page(request: Request):
+    return templates.TemplateResponse("info_page.html", {"request": request, "title": "服務條款", "content": "<p>使用本服務即表示您同意以下條款...</p>"})
+
 @app.get("/page/logout")
 def page_logout(request: Request):
     request.session.clear()

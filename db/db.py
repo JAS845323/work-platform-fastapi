@@ -1,27 +1,30 @@
+import os
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base # 新版 SQLAlchemy 建議用法
 from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv # 記得 pip install python-dotenv
 
-# 1. 資料庫連線 URL
-# 格式: "postgresql://使用者名稱:密碼@主機:Port/資料庫名稱"
-# 根據你的簡報 和 Adminer 截圖，你應該是連到本地 (localhost)
-# 預設管理員是 'postgres'，密碼是你安裝時設定的
-DATABASE_URL = "postgresql://postgres:0323jason@localhost:5432/postgres"
+# 1. 載入 .env 環境變數
+load_dotenv()
 
-# 2. 建立 SQLAlchemy 引擎
+# 2. 讀取資料庫連線 URL
+# 如果找不到環境變數，這裡會報錯提醒，避免連到錯誤的地方
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise ValueError("錯誤：未設定 DATABASE_URL，請檢查 .env 檔案")
+
+# 3. 建立 SQLAlchemy 引擎
 engine = create_engine(DATABASE_URL)
 
-# 3. 建立 SessionLocal
-# 這將是我們與資料庫溝通的 "會話" (session)
+# 4. 建立 SessionLocal
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# 4. 建立 Base
-# 我們的資料庫模型 (db/models.py) 將會繼承這個 Base
+# 5. 建立 Base
 Base = declarative_base()
 
 # -------------------------------------------------
 # 依賴注入 (Dependency Injection)
-# 這是你簡報 中提到的 "Depends" 的關鍵應用
 # -------------------------------------------------
 def get_db():
     db = SessionLocal()
