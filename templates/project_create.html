@@ -328,20 +328,19 @@
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>發布中...';
 
-        // 2. 轉換資料為 JSON
-        const formData = {
-            title: document.getElementById('title').value,
-            description: document.getElementById('description').value,
-            budget: Number(document.getElementById('budget').value), // 轉為數字
-            deadline: document.getElementById('deadline').value || null
-        };
+        // 2. [修正] 改用 FormData 物件，以符合後端 Form(...) 的接收格式
+        const formData = new FormData();
+        formData.append('title', document.getElementById('title').value);
+        formData.append('description', document.getElementById('description').value);
+        formData.append('budget', document.getElementById('budget').value);
+        formData.append('deadline', document.getElementById('deadline').value);
 
         try {
             // 3. 發送 API 請求
             const response = await fetch('/api/projects/', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                // [修正] 移除 Content-Type header，讓瀏覽器自動設定為 multipart/form-data
+                body: formData
             });
 
             if (response.ok) {
@@ -352,7 +351,19 @@
             } else {
                 // 失敗：顯示後端錯誤
                 const errorData = await response.json();
-                alert("發布失敗: " + (errorData.detail || "資料格式錯誤"));
+                
+                // [修正] 解析錯誤訊息，避免顯示 [object Object]
+                let errorMsg = "資料格式錯誤";
+                if (errorData.detail) {
+                    if (Array.isArray(errorData.detail)) {
+                        // Pydantic 的錯誤通常是陣列，將其轉為易讀字串
+                        errorMsg = errorData.detail.map(e => `${e.loc[e.loc.length-1]}: ${e.msg}`).join('\n');
+                    } else {
+                        errorMsg = errorData.detail;
+                    }
+                }
+                alert("發布失敗:\n" + errorMsg);
+                
                 btn.disabled = false;
                 btn.innerHTML = originalText;
             }

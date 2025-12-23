@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile, Request
+from pydantic import ValidationError
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
@@ -23,16 +24,28 @@ router = APIRouter()
 # --- API 1: 建立專案 ---
 @router.post("/", response_model=pydantic_models.Project)
 def create_project(
-    project: pydantic_models.ProjectCreate,
+    title: str = Form(...),
+    description: str | None = Form(None),
+    deadline: str | None = Form(None),
+    budget: str | None = Form(None),
     db: Session = Depends(get_db),
     current_client: db_models.User = Depends(get_current_client) 
 ):
+    try:
+        # 手動觸發 Pydantic 驗證，這樣可以利用 models/project.py 裡寫好的清洗邏輯
+        # (它會自動處理空字串、移除逗號、轉換日期格式)
+        project = pydantic_models.ProjectCreate(
+            title=title, description=description, deadline=deadline, budget=budget
+        )
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=e.errors())
+
     db_project = db_models.Project(
         title=project.title,
         description=project.description,
         client_id=current_client.id,
         deadline=project.deadline,
-        budget=project.budget  # [关键修正] 將預算寫入資料庫
+        budget=project.budget
     )
     db.add(db_project)
     db.commit()
