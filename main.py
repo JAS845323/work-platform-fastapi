@@ -130,7 +130,10 @@ def get_dashboard(request: Request, db: Session = Depends(get_db), q: str = None
         s = db.query(func.count(case((db_models.Project.status == 'in_progress', 1))).label('ip'), func.count(case((db_models.Project.status == 'completed', 1))).label('cp'), func.count(case((db_models.Project.status == 'open', 1))).label('op')).filter(db_models.Project.client_id == user.id).first()
         if s: stats_data = {"in_progress": s.ip, "completed": s.cp, "open": s.op}
     else:
-        context["my_projects"] = db.query(db_models.Project).filter(db_models.Project.selected_contractor_id == user.id).all()
+        my_projects_query = db.query(db_models.Project).filter(db_models.Project.selected_contractor_id == user.id)
+        if q: my_projects_query = my_projects_query.filter(db_models.Project.title.contains(q))
+        context["my_projects"] = my_projects_query.all()
+
         open_query = db.query(db_models.Project).filter(db_models.Project.status == 'open')
         if q: open_query = open_query.filter(db_models.Project.title.contains(q))
         context["open_projects"] = open_query.all()
