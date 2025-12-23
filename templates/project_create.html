@@ -1,124 +1,367 @@
 {% extends "base.html" %}
 
-{% block title %}建立新專案{% endblock %}
+{% block title %}發布專案 | TaskFlow{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
 <style>
-    /* 微調 Flatpickr 樣式以匹配玻璃質感 */
-    .flatpickr-calendar {
-        background: rgba(30, 30, 50, 0.95) !important;
-        backdrop-filter: blur(15px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
+    /* --- 沉浸式容器 (Wizard Style) --- */
+    .wizard-container {
+        max-width: 800px;
+        margin: 40px auto;
+        min-height: 600px;
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(40px) saturate(160%);
+        -webkit-backdrop-filter: blur(40px) saturate(160%);
+        border-radius: 30px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
     }
-    .flatpickr-day.selected {
-        background: #686de0 !important;
-        border-color: #686de0 !important;
+
+    /* --- 頂部進度條 --- */
+    .progress-track {
+        background: rgba(255, 255, 255, 0.1);
+        height: 6px;
+        width: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
+    .progress-fill {
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        height: 100%;
+        width: 25%;
+        transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 0 10px rgba(118, 75, 162, 0.7);
+    }
+
+    /* --- 步驟切換動畫 --- */
+    .wizard-step {
+        display: none;
+        padding: 60px 80px;
+        flex: 1;
+        flex-direction: column;
+        justify-content: center;
+        opacity: 0;
+        transform: translateY(20px);
+        transition: all 0.5s ease;
+    }
+    
+    .wizard-step.active {
+        display: flex;
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    /* --- 內容樣式 --- */
+    .step-icon {
+        font-size: 3.5rem;
+        margin-bottom: 25px;
+        background: linear-gradient(135deg, #fff 30%, #a1a8ff 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0 4px 10px rgba(102, 126, 234, 0.3));
+    }
+    
+    .step-title {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: white;
+        margin-bottom: 15px;
+    }
+    
+    .step-desc {
+        font-size: 1.1rem;
+        color: rgba(255, 255, 255, 0.6);
+        margin-bottom: 40px;
+        line-height: 1.6;
+    }
+
+    /* --- 巨大化輸入框 --- */
+    .big-input {
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 0;
+        padding: 15px 0;
+        font-size: 1.8rem;
+        color: white;
+        width: 100%;
+        outline: none;
+        transition: all 0.3s ease;
+    }
+    .big-input:focus {
+        border-color: #a1a8ff;
+        box-shadow: 0 10px 20px -10px rgba(161, 168, 255, 0.2);
+    }
+    .big-input::placeholder { color: rgba(255, 255, 255, 0.2); }
+
+    /* --- 底部導航 --- */
+    .wizard-footer {
+        padding: 30px 80px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-nav {
+        padding: 12px 30px;
+        border-radius: 50px;
+        font-size: 1rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        border: 1px solid rgba(255,255,255,0.2);
+        background: transparent;
+        color: white;
+        cursor: pointer;
+    }
+    .btn-nav:hover { background: rgba(255,255,255,0.1); }
+    
+    .btn-next {
+        background: white;
+        color: #302b63;
+        border: none;
+        padding: 12px 40px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+    .btn-next:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(255,255,255,0.3);
+        background: white;
+    }
+
+    /* --- 總覽卡片 (最後一步) --- */
+    .review-card {
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+        padding: 30px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .review-item {
+        margin-bottom: 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding-bottom: 15px;
+    }
+    .review-item:last-child { border: none; }
+    .review-label { color: #a1a8ff; font-size: 0.9rem; margin-bottom: 5px; }
+    .review-value { color: white; font-size: 1.1rem; }
+
+    /* RWD */
+    @media (max-width: 768px) {
+        .wizard-step, .wizard-footer { padding: 30px; }
+        .step-title { font-size: 1.8rem; }
+        .big-input { font-size: 1.4rem; }
     }
 </style>
 
-<div class="glass-card">
-    <h2 class="card-title text-center fw-bold mb-4" style="color: #ffffff; font-weight: 300; font-size: 2.2rem;">
-        建立您的新專案
-    </h2>
-
-    <div id="error-message" class="error-message"></div>
-    <div id="success-message" class="error-message" style="color: #c4ffc4; background-color: rgba(45, 206, 137, 0.15); border-color: rgba(45, 206, 137, 0.3);"></div>
-
-    <form id="create-project-form">
-        <div class="form-group">
-            <label for="title">專案標題</label>
-            <input type="text" id="title" name="title" class="glass-input" placeholder="例如：企業形象網站開發" required>
+<form id="createProjectForm">
+    <div class="wizard-container">
+        <div class="progress-track">
+            <div class="progress-fill" id="progressBar"></div>
         </div>
-        
-        <div class="form-group">
-            <label for="deadline">競標截止期限 (選填)</label>
-            <div style="position: relative;">
-                <input type="text" id="deadline" name="deadline" class="glass-input" placeholder="請選擇截止日期與時間..." style="background-color: rgba(0,0,0,0.2); cursor: pointer;">
-                <i class="fas fa-calendar-alt" style="position: absolute; right: 15px; top: 15px; color: rgba(255,255,255,0.5); pointer-events: none;"></i>
+
+        <div class="wizard-step active" id="step1">
+            <i class="fas fa-magic step-icon"></i>
+            <h2 class="step-title">讓我們開始吧，<br>這個專案叫什麼名字？</h2>
+            <p class="step-desc">一個吸睛的標題能讓接案者第一眼就對您的構想感興趣。</p>
+            <input type="text" class="big-input" id="title" name="title" placeholder="輸入專案名稱..." required autofocus>
+        </div>
+
+        <div class="wizard-step" id="step2">
+            <i class="fas fa-align-left step-icon"></i>
+            <h2 class="step-title">具體需要做什麼？</h2>
+            <p class="step-desc">請詳細描述您的需求、功能規格或是任何天馬行空的想像。</p>
+            <textarea class="big-input" id="description" name="description" rows="4" style="border: 1px solid rgba(255,255,255,0.2); border-radius: 15px; padding: 20px; font-size: 1.2rem;" placeholder="寫下您的想法..." required></textarea>
+        </div>
+
+        <div class="wizard-step" id="step3">
+            <i class="fas fa-coins step-icon"></i>
+            <h2 class="step-title">預算與時間規劃</h2>
+            <p class="step-desc">設定一個合理的範圍，有助於媒合到最合適的專家。</p>
+            
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <label class="text-white-50 mb-2">預算上限 (NT$)</label>
+                    <input type="number" class="form-control glass-input" id="budget" name="budget" placeholder="150000" min="0" required style="font-size: 1.2rem; padding: 15px; background: transparent; border-bottom: 2px solid rgba(255,255,255,0.3); border-radius: 0; color: white;">
+                </div>
+                <div class="col-md-6">
+                    <label class="text-white-50 mb-2">期望截止日</label>
+                    <input type="date" class="form-control glass-input" id="deadline" name="deadline" required style="font-size: 1.2rem; padding: 15px; background: transparent; border-bottom: 2px solid rgba(255,255,255,0.3); border-radius: 0; color: white;">
+                </div>
             </div>
-            <small style="color: rgba(255,255,255,0.5); font-size: 0.8rem; margin-top: 5px; display: block;">
-                * 設定期限後，將啟用「限時競標」模式，倒數結束前無法決標。
-            </small>
         </div>
 
-        <div class="form-group">
-            <label for="description">專案描述</label>
-            <textarea id="description" name="description" class="glass-input" rows="5" placeholder="請詳細說明您的需求、預算範圍以及交付標準..."></textarea>
+        <div class="wizard-step" id="step4">
+            <i class="fas fa-rocket step-icon"></i>
+            <h2 class="step-title">準備起飛！</h2>
+            <p class="step-desc">請最後確認以下資訊，沒問題我們就發布囉。</p>
+            
+            <div class="review-card">
+                <div class="review-item">
+                    <div class="review-label">專案標題</div>
+                    <div class="review-value" id="review-title">--</div>
+                </div>
+                <div class="review-item">
+                    <div class="review-label">需求摘要</div>
+                    <div class="review-value text-truncate" id="review-desc">--</div>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="review-label">預算</div>
+                        <div class="review-value" id="review-budget">--</div>
+                    </div>
+                    <div class="text-end">
+                        <div class="review-label">截止日期</div>
+                        <div class="review-value" id="review-date">--</div>
+                    </div>
+                </div>
+            </div>
         </div>
-        
-        <div class="form-group" style="margin-top: 2rem;">
-            <button type="submit" class="glass-button">發布專案</button>
-        </div>
-        <div class="form-footer">
-            <a href="/dashboard">取消</a>
-        </div>
-    </form>
-</div>
-{% endblock %}
 
-
-{% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="https://npmcdn.com/flatpickr/dist/l10n/zh-tw.js"></script>
+        <div class="wizard-footer">
+            <button type="button" class="btn-nav" id="prevBtn" onclick="changeStep(-1)" style="visibility: hidden;">
+                <i class="fas fa-arrow-left"></i> 上一步
+            </button>
+            <div style="color: rgba(255,255,255,0.4); font-size: 0.9rem;">
+                Step <span id="currentStepNum">1</span> / 4
+            </div>
+            <button type="button" class="btn-nav btn-next" id="nextBtn" onclick="changeStep(1)">
+                下一步 <i class="fas fa-arrow-right ms-2"></i>
+            </button>
+            <button type="submit" class="btn-nav btn-next" id="submitBtn" style="display: none; background: #2dce89; color: white;">
+                確認發布 <i class="fas fa-check ms-2"></i>
+            </button>
+        </div>
+    </div>
+</form>
 
 <script>
-    // --- 初始化日期時間選擇器 ---
-    flatpickr("#deadline", {
-        enableTime: true,          // 啟用時間選擇
-        dateFormat: "Y-m-d H:i",   // 格式：年-月-日 時:分
-        minDate: "today",          // 限制不能選過去的時間
-        time_24hr: true,           // 24小時制
-        locale: "zh_tw",           // 使用繁體中文
-        disableMobile: "true",     // 在手機上也強制使用 Flatpickr 主題 (這會讓手機版也變好看)
-        theme: "dark"              // 深色主題模式
-    });
+    let currentStep = 1;
+    const totalSteps = 4;
 
-    // --- 表單送出邏輯 (保持不變) ---
-    document.getElementById("create-project-form").addEventListener("submit", async function(event) {
-        event.preventDefault();
+    // 初始化
+    window.onload = function() {
+        // 設定日期選擇器最小值
+        const dateInput = document.getElementById('deadline');
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.setAttribute('min', today);
 
-        const errorMessage = document.getElementById("error-message");
-        const successMessage = document.getElementById("success-message");
+        // 綁定表單攔截
+        const form = document.getElementById('createProjectForm');
+        form.addEventListener('submit', handleFormSubmit);
 
-        // 收集表單資料
-        const data = {
-            title: event.target.title.value,
-            description: event.target.description.value,
-            // 若使用者未填寫，這裡會是空字串，傳給後端前轉為 null
-            deadline: event.target.deadline.value || null
+        // 綁定 Enter 鍵 (標題輸入)
+        document.getElementById('title').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); changeStep(1); }
+        });
+    }
+
+    function changeStep(direction) {
+        if (direction === 1 && !validateStep(currentStep)) return;
+
+        const nextStep = currentStep + direction;
+        if (nextStep < 1 || nextStep > totalSteps) return;
+
+        document.getElementById(`step${currentStep}`).classList.remove('active');
+        currentStep = nextStep;
+        document.getElementById(`step${currentStep}`).classList.add('active');
+
+        if (currentStep === 4) updateReviewData();
+        updateUI();
+    }
+
+    function updateUI() {
+        const progress = (currentStep / totalSteps) * 100;
+        document.getElementById('progressBar').style.width = `${progress}%`;
+        document.getElementById('currentStepNum').innerText = currentStep;
+
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const submitBtn = document.getElementById('submitBtn');
+
+        prevBtn.style.visibility = currentStep === 1 ? 'hidden' : 'visible';
+        
+        if (currentStep === totalSteps) {
+            nextBtn.style.display = 'none';
+            submitBtn.style.display = 'inline-flex';
+        } else {
+            nextBtn.style.display = 'inline-flex';
+            submitBtn.style.display = 'none';
+        }
+    }
+
+    function validateStep(step) {
+        if (step === 1) {
+            const val = document.getElementById('title').value;
+            if (!val) { alert("請輸入專案標題"); return false; }
+        }
+        if (step === 2) {
+            const val = document.getElementById('description').value;
+            if (!val) { alert("請輸入描述"); return false; }
+        }
+        if (step === 3) {
+            const b = document.getElementById('budget').value;
+            const d = document.getElementById('deadline').value;
+            if (!b || !d) { alert("請填寫預算與日期"); return false; }
+        }
+        return true;
+    }
+
+    function updateReviewData() {
+        document.getElementById('review-title').innerText = document.getElementById('title').value;
+        document.getElementById('review-desc').innerText = document.getElementById('description').value;
+        document.getElementById('review-budget').innerText = "NT$ " + new Intl.NumberFormat('zh-TW').format(document.getElementById('budget').value);
+        document.getElementById('review-date').innerText = document.getElementById('deadline').value;
+    }
+
+    // --- 核心修復：JSON 提交邏輯 ---
+    async function handleFormSubmit(e) {
+        e.preventDefault(); // 1. 攔截預設表單提交 (避免 422)
+        
+        const btn = document.getElementById('submitBtn');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>發布中...';
+
+        // 2. 轉換資料為 JSON
+        const formData = {
+            title: document.getElementById('title').value,
+            description: document.getElementById('description').value,
+            budget: Number(document.getElementById('budget').value), // 轉為數字
+            deadline: document.getElementById('deadline').value || null
         };
 
         try {
-            const response = await fetch("/api/projects/", {
-                method: "POST",
-                headers: { 
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(data)
+            // 3. 發送 API 請求
+            const response = await fetch('/api/projects/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
             });
 
             if (response.ok) {
-                errorMessage.style.display = "none";
-                successMessage.textContent = "專案建立成功！ 2 秒後將返回首頁...";
-                successMessage.style.display = "block";
-                
-                setTimeout(() => {
-                    window.location.href = "/dashboard";
-                }, 2000);
-
+                // 成功：顯示成功狀態
+                btn.style.background = '#2dce89';
+                btn.innerHTML = '<i class="fas fa-check me-2"></i>成功！跳轉中...';
+                setTimeout(() => window.location.href = "/dashboard", 1500);
             } else {
-                const res = await response.json();
-                errorMessage.textContent = res.detail || "建立失敗。";
-                errorMessage.style.display = "block";
-                successMessage.style.display = "none";
+                // 失敗：顯示後端錯誤
+                const errorData = await response.json();
+                alert("發布失敗: " + (errorData.detail || "資料格式錯誤"));
+                btn.disabled = false;
+                btn.innerHTML = originalText;
             }
         } catch (error) {
-            errorMessage.textContent = "發生網路錯誤，請稍後再試。";
-            errorMessage.style.display = "block";
-            successMessage.style.display = "none";
+            alert("網路連線錯誤，請稍後再試。");
+            btn.disabled = false;
+            btn.innerHTML = originalText;
         }
-    });
+    }
 </script>
+
 {% endblock %}
