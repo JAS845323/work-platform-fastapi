@@ -14,9 +14,12 @@ class User(BaseModel):
     username: str
     email: EmailStr
     role: UserRole
+    average_rating: float = 0.0
+    rating_count: int = 0
 
     class Config:
         from_attributes = True  # 允許 Pydantic 從 SQLAlchemy 物件讀取資料
+        orm_mode = True
 
 # 用於 API "輸入" (建立 User)
 class UserCreate(BaseModel):

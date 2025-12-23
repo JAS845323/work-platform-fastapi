@@ -30,6 +30,7 @@ class Rating(BaseModel):
     
     class Config:
         from_attributes = True
+        orm_mode = True
 
 # --- Issue Models ---
 class IssueCommentCreate(BaseModel):
@@ -44,6 +45,7 @@ class IssueComment(BaseModel):
     
     class Config:
         from_attributes = True
+        orm_mode = True
 
 class IssueCreate(BaseModel):
     title: str
@@ -60,6 +62,7 @@ class Issue(BaseModel):
     
     class Config:
         from_attributes = True
+        orm_mode = True
 
 # --- Project Models ---
 
@@ -86,6 +89,7 @@ class Project(BaseModel):
     
     class Config:
         from_attributes = True
+        orm_mode = True
 
 class ProjectUpdate(BaseModel):
     title: str

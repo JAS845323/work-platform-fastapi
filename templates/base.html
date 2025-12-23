@@ -176,6 +176,11 @@
                             <a href="/user/{{ request.session.user_id }}" class="dropdown-item">
                                 <i class="fas fa-user-circle"></i> 個人檔案
                             </a>
+                            {% if request.session.role != 'client' %}
+                            <a href="/favorites" class="dropdown-item">
+                                <i class="fas fa-heart"></i> 我的收藏
+                            </a>
+                            {% endif %}
                             <a href="/dashboard" class="dropdown-item">
                                 <i class="fas fa-cog"></i> 帳號設定
                             </a>

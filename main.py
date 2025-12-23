@@ -10,6 +10,7 @@ from sqlalchemy import func, case, update
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.exceptions import HTTPException
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.exception_handlers import http_exception_handler
 from dotenv import load_dotenv
 import os
 
@@ -31,6 +32,8 @@ app = FastAPI()
 async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
     if exc.status_code == 404:
         return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+    if exc.status_code == 401:
+        return RedirectResponse(url="/", status_code=303)
     return await http_exception_handler(request, exc)
 
 # -----------------------------------------------
@@ -66,11 +69,11 @@ app.include_router(upload.router, prefix="/api", tags=["API - Upload"])
 def get_user_from_session(request: Request, db: Session = Depends(get_db)):
     user_id = request.session.get("user_id")
     if not user_id:
-        return RedirectResponse(url="/", status_code=303) 
+        raise HTTPException(status_code=401)
     user = db.query(db_models.User).filter(db_models.User.id == user_id).first()
     if not user:
         request.session.clear()
-        return RedirectResponse(url="/", status_code=303)
+        raise HTTPException(status_code=401)
     return True
 
 @app.get("/", response_class=HTMLResponse)
@@ -119,7 +122,9 @@ def get_dashboard(request: Request, db: Session = Depends(get_db), q: str = None
 
     # 2. 專案清單邏輯
     if user.role == 'client':
-        query = db.query(db_models.Project).filter(db_models.Project.client_id == user.id)
+        query = db.query(db_models.Project).options(
+            joinedload(db_models.Project.contractor)
+        ).filter(db_models.Project.client_id == user.id)
         if q: query = query.filter(db_models.Project.title.contains(q))
         context["my_projects"] = query.order_by(db_models.Project.created_at.desc()).all()
         
@@ -127,8 +132,15 @@ def get_dashboard(request: Request, db: Session = Depends(get_db), q: str = None
         s = db.query(func.count(case((db_models.Project.status == 'in_progress', 1))).label('ip'), func.count(case((db_models.Project.status == 'completed', 1))).label('cp'), func.count(case((db_models.Project.status == 'open', 1))).label('op')).filter(db_models.Project.client_id == user.id).first()
         if s: stats_data = {"in_progress": s.ip, "completed": s.cp, "open": s.op}
     else:
-        context["my_projects"] = db.query(db_models.Project).filter(db_models.Project.selected_contractor_id == user.id).all()
-        open_query = db.query(db_models.Project).filter(db_models.Project.status == 'open')
+        my_projects_query = db.query(db_models.Project).options(
+            joinedload(db_models.Project.client)
+        ).filter(db_models.Project.selected_contractor_id == user.id)
+        if q: my_projects_query = my_projects_query.filter(db_models.Project.title.contains(q))
+        context["my_projects"] = my_projects_query.all()
+
+        open_query = db.query(db_models.Project).options(
+            joinedload(db_models.Project.client)
+        ).filter(db_models.Project.status == 'open')
         if q: open_query = open_query.filter(db_models.Project.title.contains(q))
         context["open_projects"] = open_query.all()
 
@@ -148,6 +160,11 @@ def get_project_create_page(request: Request, db: Session = Depends(get_db)):
         "request": request, 
         "user": user
     })
+
+# --- 專案建立頁 (必須放在專案詳情頁之前，否則 'create' 會被當作 project_id 導致 422 錯誤) ---
+@app.get("/project/create", response_class=HTMLResponse, dependencies=[Depends(get_user_from_session)])
+def get_project_create_page(request: Request):
+    return templates.TemplateResponse("project_create.html", {"request": request})
 
 # --- 專案詳情頁 ---
 @app.get("/project/{project_id}", response_class=HTMLResponse, dependencies=[Depends(get_user_from_session)])
@@ -188,6 +205,21 @@ def get_project_detail_page(project_id: int, request: Request, db: Session = Dep
         "unread_count": unread_count_value, # 這裡現在有值了
     })
 
+# --- [新增] 我的收藏頁面 ---
+@app.get("/favorites", response_class=HTMLResponse, dependencies=[Depends(get_user_from_session)])
+def get_favorites_page(request: Request, db: Session = Depends(get_db)):
+    user_id = request.session.get("user_id")
+    # 預先載入收藏專案及其發案人資料，避免 N+1 問題
+    user = db.query(db_models.User).options(
+        joinedload(db_models.User.favorite_projects).joinedload(db_models.Project.client)
+    ).filter(db_models.User.id == user_id).first()
+    
+    return templates.TemplateResponse("favorites.html", {
+        "request": request, 
+        "user": user, 
+        "projects": user.favorite_projects
+    })
+
 # --- 個人檔案頁：加入收藏與雷達圖數據 ---
 @app.get("/user/{user_id_profile}", response_class=HTMLResponse, dependencies=[Depends(get_user_from_session)])
 def get_user_profile_page(user_id_profile: int, request: Request, db: Session = Depends(get_db)):
@@ -203,6 +235,15 @@ def get_user_profile_page(user_id_profile: int, request: Request, db: Session = 
     ).filter(db_models.User.id == user_id_profile).first()
 
     if not profile_user: return RedirectResponse(url="/dashboard", status_code=404)
+
+    # [新增] 將評價依照時間倒序排列 (最新的在最上面)，方便查看歷史紀錄
+    if profile_user.ratings_received:
+        profile_user.ratings_received.sort(key=lambda x: x.created_at, reverse=True)
+        
+        # [新增] 即時計算綜合評分，確保個人檔案顯示正確 (解決舊資料可能為 0 的問題)
+        total_score = sum((r.score_dim1 + r.score_dim2 + r.score_dim3) / 3.0 for r in profile_user.ratings_received)
+        profile_user.average_rating = round(total_score / len(profile_user.ratings_received), 1)
+        profile_user.rating_count = len(profile_user.ratings_received)
 
     return templates.TemplateResponse("user_profile.html", {
         "request": request, "user": current_user, "profile_user": profile_user,
