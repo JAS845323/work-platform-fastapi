@@ -122,7 +122,9 @@ def get_dashboard(request: Request, db: Session = Depends(get_db), q: str = None
 
     # 2. 專案清單邏輯
     if user.role == 'client':
-        query = db.query(db_models.Project).filter(db_models.Project.client_id == user.id)
+        query = db.query(db_models.Project).options(
+            joinedload(db_models.Project.contractor)
+        ).filter(db_models.Project.client_id == user.id)
         if q: query = query.filter(db_models.Project.title.contains(q))
         context["my_projects"] = query.order_by(db_models.Project.created_at.desc()).all()
         
@@ -130,11 +132,15 @@ def get_dashboard(request: Request, db: Session = Depends(get_db), q: str = None
         s = db.query(func.count(case((db_models.Project.status == 'in_progress', 1))).label('ip'), func.count(case((db_models.Project.status == 'completed', 1))).label('cp'), func.count(case((db_models.Project.status == 'open', 1))).label('op')).filter(db_models.Project.client_id == user.id).first()
         if s: stats_data = {"in_progress": s.ip, "completed": s.cp, "open": s.op}
     else:
-        my_projects_query = db.query(db_models.Project).filter(db_models.Project.selected_contractor_id == user.id)
+        my_projects_query = db.query(db_models.Project).options(
+            joinedload(db_models.Project.client)
+        ).filter(db_models.Project.selected_contractor_id == user.id)
         if q: my_projects_query = my_projects_query.filter(db_models.Project.title.contains(q))
         context["my_projects"] = my_projects_query.all()
 
-        open_query = db.query(db_models.Project).filter(db_models.Project.status == 'open')
+        open_query = db.query(db_models.Project).options(
+            joinedload(db_models.Project.client)
+        ).filter(db_models.Project.status == 'open')
         if q: open_query = open_query.filter(db_models.Project.title.contains(q))
         context["open_projects"] = open_query.all()
 

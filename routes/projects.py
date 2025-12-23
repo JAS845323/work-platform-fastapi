@@ -119,7 +119,7 @@ def get_bids_for_project(
     current_client: db_models.User = Depends(get_current_client)
 ):
     db_project = db.query(db_models.Project).options(
-        joinedload(db_models.Project.bids)
+        joinedload(db_models.Project.bids).joinedload(db_models.Bid.contractor)
     ).filter(
         db_models.Project.id == project_id,
         db_models.Project.client_id == current_client.id
@@ -169,7 +169,8 @@ def get_my_projects(
 ):
     if current_user.role == 'client':
         projects = db.query(db_models.Project).options(
-            joinedload(db_models.Project.client) 
+            joinedload(db_models.Project.client),
+            joinedload(db_models.Project.contractor)
         ).filter(
             db_models.Project.client_id == current_user.id
         ).all()

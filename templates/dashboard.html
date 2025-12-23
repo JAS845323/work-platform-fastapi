@@ -197,7 +197,7 @@
                 <i class="fas fa-tasks" style="color: #ffc107; margin-right: 8px;"></i> 我承接的任務
             </h3>
             {% for project in my_projects %}
-            <a href="/project/{{ project.id }}" class="project-card-row">
+            <div onclick="location.href='/project/{{ project.id }}'" class="project-card-row" style="cursor: pointer;">
                 <div>
                     <h4 style="color: white; margin-bottom: 5px;">{{ project.title }}</h4>
                     <div style="font-size: 0.85rem; color: rgba(255,255,255,0.5);">
@@ -205,13 +205,13 @@
                         {% elif project.status == 'completed' %}<span class="status-dot bg-gray"></span>已結案
                         {% endif %}
                         <span style="margin: 0 10px;">|</span>
-                        案主: {{ project.client.username }}
+                        案主: <a href="/user/{{ project.client.id }}" onclick="event.stopPropagation()" style="color: #a1a8ff; text-decoration: underline; position: relative; z-index: 2;">{{ project.client.username }}</a>
                     </div>
                 </div>
                 <div style="text-align: right;">
                     <i class="fas fa-chevron-right" style="color: rgba(255,255,255,0.2);"></i>
                 </div>
-            </a>
+            </div>
             {% else %}
             <div style="text-align: center; padding: 20px; color: rgba(255,255,255,0.4);">
                 目前沒有進行中的任務
@@ -231,16 +231,16 @@
                         <i class="fas fa-heart"></i>
                     </button>
 
-                    <a href="/project/{{ project.id }}" style="text-decoration: none; display: block;">
+                    <div onclick="location.href='/project/{{ project.id }}'" style="cursor: pointer;">
                         <h4 style="color: white; margin-bottom: 10px; font-size: 1.1rem; padding-right: 30px;">{{ project.title }}</h4>
                         <p style="color: rgba(255,255,255,0.6); font-size: 0.9rem; height: 40px; overflow: hidden;">
                             {{ project.description | truncate(50) }}
                         </p>
                         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; font-size: 0.8rem;">
-                            <span style="color: #686de0;">{{ project.client.username }}</span>
+                            <a href="/user/{{ project.client.id }}" onclick="event.stopPropagation()" style="color: #686de0; text-decoration: none; font-weight: bold; position: relative; z-index: 2;">{{ project.client.username }}</a>
                             <span style="color: #ec644b;">{{ project.created_at.strftime('%m-%d') }}</span>
                         </div>
-                    </a>
+                    </div>
                 </div>
                 {% else %}
                 <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: rgba(255,255,255,0.4);">
