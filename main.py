@@ -195,6 +195,21 @@ def get_project_detail_page(project_id: int, request: Request, db: Session = Dep
         "unread_count": unread_count_value, # 這裡現在有值了
     })
 
+# --- [新增] 我的收藏頁面 ---
+@app.get("/favorites", response_class=HTMLResponse, dependencies=[Depends(get_user_from_session)])
+def get_favorites_page(request: Request, db: Session = Depends(get_db)):
+    user_id = request.session.get("user_id")
+    # 預先載入收藏專案及其發案人資料，避免 N+1 問題
+    user = db.query(db_models.User).options(
+        joinedload(db_models.User.favorite_projects).joinedload(db_models.Project.client)
+    ).filter(db_models.User.id == user_id).first()
+    
+    return templates.TemplateResponse("favorites.html", {
+        "request": request, 
+        "user": user, 
+        "projects": user.favorite_projects
+    })
+
 # --- 個人檔案頁：加入收藏與雷達圖數據 ---
 @app.get("/user/{user_id_profile}", response_class=HTMLResponse, dependencies=[Depends(get_user_from_session)])
 def get_user_profile_page(user_id_profile: int, request: Request, db: Session = Depends(get_db)):

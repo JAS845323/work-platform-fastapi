@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}我的收藏 | TaskFlow{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px;">
+            <h2 style="color: white; font-weight: 300; font-size: 2rem; margin: 0;">
+                <i class="fas fa-heart" style="color: #ec644b; margin-right: 15px;"></i>我的收藏專案
+            </h2>
+            <a href="/dashboard" class="glass-button btn-inline-sm">
+                <i class="fas fa-arrow-left"></i> 返回儀表板
+            </a>
+        </div>
+
+        <div class="effects-grid">
+            {% for project in projects %}
+            <div class="effect-card" id="project-card-{{ project.id }}" style="padding: 20px; position: relative;">
+                
+                <!-- 收藏按鈕 (點擊可取消收藏) -->
+                <button class="fav-btn active" 
+                        onclick="toggleFavorite(event, {{ project.id }}, this)" 
+                        title="移除收藏"
+                        style="position: absolute; top: 15px; right: 15px;">
+                    <i class="fas fa-heart"></i>
+                </button>
+
+                <div onclick="location.href='/project/{{ project.id }}'" style="cursor: pointer;">
+                    <h4 style="color: white; margin-bottom: 10px; font-size: 1.1rem; padding-right: 30px;">{{ project.title }}</h4>
+                    
+                    <div style="margin-bottom: 15px;">
+                        {% if project.status == 'open' %}
+                            <span style="font-size: 0.8rem; padding: 2px 8px; border-radius: 4px; background: rgba(45, 206, 137, 0.2); color: #2dce89; border: 1px solid rgba(45, 206, 137, 0.3);">開放競標中</span>
+                        {% elif project.status == 'in_progress' %}
+                            <span style="font-size: 0.8rem; padding: 2px 8px; border-radius: 4px; background: rgba(255, 193, 7, 0.2); color: #ffc107; border: 1px solid rgba(255, 193, 7, 0.3);">執行中</span>
+                        {% else %}
+                            <span style="font-size: 0.8rem; padding: 2px 8px; border-radius: 4px; background: rgba(136, 152, 170, 0.2); color: #8898aa; border: 1px solid rgba(136, 152, 170, 0.3);">{{ project.status }}</span>
+                        {% endif %}
+                    </div>
+
+                    <p style="color: rgba(255,255,255,0.6); font-size: 0.9rem; height: 40px; overflow: hidden;">
+                        {{ project.description | truncate(50) }}
+                    </p>
+                    
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; font-size: 0.8rem;">
+                        <span style="color: #686de0; font-weight: bold;">
+                            <i class="fas fa-user-circle"></i> {{ project.client.username }}
+                        </span>
+                        <span style="color: rgba(255,255,255,0.5);">{{ project.created_at.strftime('%Y-%m-%d') }}</span>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div style="grid-column: 1/-1; text-align: center; padding: 60px; color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px dashed rgba(255,255,255,0.1);">
+                <i class="far fa-heart" style="font-size: 3rem; margin-bottom: 20px; opacity: 0.5;"></i>
+                <p style="font-size: 1.1rem;">您目前還沒有收藏任何專案</p>
+                <a href="/dashboard" class="glass-button btn-inline-sm" style="margin-top: 15px;">前往市場探索</a>
+            </div>
+            {% endfor %}
+        </div>
+
+    </div>
+</div>
+
+<style>
+    /* 收藏按鈕樣式 (與 Dashboard 一致) */
+    .fav-btn {
+        background: transparent;
+        border: none;
+        color: rgba(255,255,255,0.3);
+        font-size: 1.2rem;
+        cursor: pointer;
+        transition: 0.3s;
+        padding: 5px;
+        z-index: 2;
+    }
+    .fav-btn:hover { transform: scale(1.2); }
+    .fav-btn.active { color: #ec644b; text-shadow: 0 0 10px rgba(236, 100, 75, 0.4); }
+</style>
+
+<script>
+    // 收藏功能邏輯 (與 Dashboard 類似，但取消收藏時會移除卡片)
+    async function toggleFavorite(event, projectId, btn) {
+        event.stopPropagation();
+        event.preventDefault();
+
+        if (!confirm("確定要從收藏中移除此專案嗎？")) return;
+
+        try {
+            const response = await fetch(`/api/projects/${projectId}/favorite`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (!data.is_favorited) {
+                    // 移除卡片動畫
+                    const card = document.getElementById(`project-card-${projectId}`);
+                    card.style.transition = "all 0.5s ease";
+                    card.style.opacity = "0";
+                    card.style.transform = "scale(0.9)";
+                    setTimeout(() => card.remove(), 500);
+                    if (window.showToast) showToast('已從收藏中移除', 'info');
+                }
+            }
+        } catch (e) {
+            console.error('收藏請求錯誤:', e);
+            if (window.showToast) showToast('網路連線錯誤', 'error');
+        }
+    }
+</script>
+{% endblock %}

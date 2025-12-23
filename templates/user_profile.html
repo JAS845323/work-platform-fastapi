@@ -157,9 +157,15 @@
                         </div>
                         
                         <div style="display: flex; gap: 15px; margin-bottom: 10px; font-size: 0.85rem; color: rgba(255,255,255,0.7);">
-                            <span>品質: <i class="fas fa-star" style="color: #ffd700;"></i> {{ rating.score_dim1 }}</span>
-                            <span>效率: <i class="fas fa-star" style="color: #ffd700;"></i> {{ rating.score_dim2 }}</span>
-                            <span>態度: <i class="fas fa-star" style="color: #ffd700;"></i> {{ rating.score_dim3 }}</span>
+                            {% if profile_user.role == 'client' %}
+                                <span>需求: <i class="fas fa-star" style="color: #ffd700;"></i> {{ rating.score_dim1 }}</span>
+                                <span>驗收: <i class="fas fa-star" style="color: #ffd700;"></i> {{ rating.score_dim2 }}</span>
+                                <span>態度: <i class="fas fa-star" style="color: #ffd700;"></i> {{ rating.score_dim3 }}</span>
+                            {% else %}
+                                <span>品質: <i class="fas fa-star" style="color: #ffd700;"></i> {{ rating.score_dim1 }}</span>
+                                <span>效率: <i class="fas fa-star" style="color: #ffd700;"></i> {{ rating.score_dim2 }}</span>
+                                <span>態度: <i class="fas fa-star" style="color: #ffd700;"></i> {{ rating.score_dim3 }}</span>
+                            {% endif %}
                         </div>
 
                         {% if rating.comment %}
@@ -195,7 +201,7 @@
             new Chart(ctx, {
                 type: 'radar',
                 data: {
-                    labels: ['品質/合理性', '效率/配合度', '溝通態度'],
+                    labels: [{% if profile_user.role == 'client' %}'需求合理性', '驗收難度', '合作態度'{% else %}'工作品質', '執行效率', '溝通態度'{% endif %}],
                     datasets: [{
                         label: '能力值',
                         data: AVG_SCORES, // 這是從上面 Jinja2 算出來的變數

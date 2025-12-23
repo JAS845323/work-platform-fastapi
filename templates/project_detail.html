@@ -426,9 +426,9 @@
                             <h4 style="font-size: 1rem; color: rgba(255,255,255,0.6); margin-bottom: 15px;">您對對方的評價</h4>
                             {% if my_rating %}
                                 <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 10px;">
-                                    <div style="margin-bottom: 5px;">品質/合理性: <strong style="color: #2dce89;">{{ my_rating.score_dim1 }}</strong></div>
-                                    <div style="margin-bottom: 5px;">效率/配合度: <strong style="color: #2dce89;">{{ my_rating.score_dim2 }}</strong></div>
-                                    <div>溝通態度: <strong style="color: #2dce89;">{{ my_rating.score_dim3 }}</strong></div>
+                                    <div style="margin-bottom: 5px;">{% if other_party.role == 'client' %}需求合理性{% else %}工作品質{% endif %}: <strong style="color: #2dce89;">{{ my_rating.score_dim1 }}</strong></div>
+                                    <div style="margin-bottom: 5px;">{% if other_party.role == 'client' %}驗收難度{% else %}執行效率{% endif %}: <strong style="color: #2dce89;">{{ my_rating.score_dim2 }}</strong></div>
+                                    <div>{% if other_party.role == 'client' %}合作態度{% else %}溝通態度{% endif %}: <strong style="color: #2dce89;">{{ my_rating.score_dim3 }}</strong></div>
                                     {% if my_rating.comment %}
                                     <p style="margin-top: 10px; font-style: italic; opacity: 0.8;">"{{ my_rating.comment }}"</p>
                                     {% endif %}
@@ -447,7 +447,7 @@
                                         </h4>
 
                                         <div class="rating-group">
-                                            <span class="rating-label">品質/合理性</span>
+                                            <span class="rating-label">{% if other_party.role == 'client' %}需求合理性{% else %}工作品質{% endif %}</span>
                                             <div class="star-container" id="stars-1" onmouseleave="resetStars(1)">
                                                 <i class="fas fa-star star-icon" data-val="1" onclick="setRating(1, 1)" onmouseover="highlightStars(1, 1)"></i>
                                                 <i class="fas fa-star star-icon" data-val="2" onclick="setRating(1, 2)" onmouseover="highlightStars(1, 2)"></i>
@@ -458,7 +458,7 @@
                                         </div>
 
                                         <div class="rating-group">
-                                            <span class="rating-label">效率/配合度</span>
+                                            <span class="rating-label">{% if other_party.role == 'client' %}驗收難度{% else %}執行效率{% endif %}</span>
                                             <div class="star-container" id="stars-2" onmouseleave="resetStars(2)">
                                                 <i class="fas fa-star star-icon" data-val="1" onclick="setRating(2, 1)" onmouseover="highlightStars(2, 1)"></i>
                                                 <i class="fas fa-star star-icon" data-val="2" onclick="setRating(2, 2)" onmouseover="highlightStars(2, 2)"></i>
@@ -469,7 +469,7 @@
                                         </div>
 
                                         <div class="rating-group">
-                                            <span class="rating-label">溝通態度</span>
+                                            <span class="rating-label">{% if other_party.role == 'client' %}合作態度{% else %}溝通態度{% endif %}</span>
                                             <div class="star-container" id="stars-3" onmouseleave="resetStars(3)">
                                                 <i class="fas fa-star star-icon" data-val="1" onclick="setRating(3, 1)" onmouseover="highlightStars(3, 1)"></i>
                                                 <i class="fas fa-star star-icon" data-val="2" onclick="setRating(3, 2)" onmouseover="highlightStars(3, 2)"></i>
