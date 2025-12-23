@@ -161,11 +161,6 @@ def get_project_create_page(request: Request, db: Session = Depends(get_db)):
         "user": user
     })
 
-# --- 專案建立頁 (必須放在專案詳情頁之前，否則 'create' 會被當作 project_id 導致 422 錯誤) ---
-@app.get("/project/create", response_class=HTMLResponse, dependencies=[Depends(get_user_from_session)])
-def get_project_create_page(request: Request):
-    return templates.TemplateResponse("project_create.html", {"request": request})
-
 # --- 專案詳情頁 ---
 @app.get("/project/{project_id}", response_class=HTMLResponse, dependencies=[Depends(get_user_from_session)])
 def get_project_detail_page(project_id: int, request: Request, db: Session = Depends(get_db)):

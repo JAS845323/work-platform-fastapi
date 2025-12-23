@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from enum import Enum
 from datetime import datetime
 from typing import List, Optional
@@ -71,6 +71,38 @@ class ProjectCreate(BaseModel):
     description: str | None = None
     deadline: datetime | None = None 
     budget: float | None = None # [关键修正] 新增預算欄位
+
+    # [修正] 針對 deadline 處理空字串
+    @validator('deadline', pre=True)
+    def parse_deadline(cls, v):
+        if isinstance(v, str):
+            if v.strip() == "":
+                return None
+            # [新增] 手動解析 YYYY-MM-DD 格式，解決 Pydantic 422 錯誤
+            try:
+                return datetime.strptime(v, '%Y-%m-%d')
+            except ValueError:
+                pass # 如果格式不符，讓 Pydantic 嘗試預設解析
+        return v
+
+    # [修正] 針對 budget 處理空字串與逗號 (例如 "1,000")，避免 422 錯誤
+    @validator('budget', pre=True)
+    def parse_budget(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, (int, float)):
+            return v
+        if isinstance(v, str):
+            cleaned_v = v.strip()
+            if not cleaned_v:
+                return None
+            # 移除貨幣符號與逗號，讓 Pydantic 可以正確解析
+            cleaned_v = cleaned_v.replace(",", "").replace("$", "").replace("NT", "").strip()
+            try:
+                return float(cleaned_v)
+            except ValueError:
+                return None
+        return v
 
 class Project(BaseModel):
     id: int
