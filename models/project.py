@@ -11,7 +11,7 @@ class ProjectStatus(str, Enum):
     completed = 'completed'
     rejected = 'rejected'
 
-# --- [延伸二] Rating Models ---
+# --- Rating Models ---
 class RatingCreate(BaseModel):
     score_dim1: int
     score_dim2: int
@@ -31,7 +31,7 @@ class Rating(BaseModel):
     class Config:
         from_attributes = True
 
-# --- [延伸三] Issue Models ---
+# --- Issue Models ---
 class IssueCommentCreate(BaseModel):
     content: str
 
@@ -66,7 +66,8 @@ class Issue(BaseModel):
 class ProjectCreate(BaseModel):
     title: str
     description: str | None = None
-    deadline: datetime | None = None # [延伸一] 截止時間
+    deadline: datetime | None = None 
+    budget: float | None = None # [关键修正] 新增預算欄位
 
 class Project(BaseModel):
     id: int
@@ -74,13 +75,14 @@ class Project(BaseModel):
     title: str
     description: str | None = None
     status: ProjectStatus
-    deadline: datetime | None = None # [延伸一]
+    deadline: datetime | None = None
+    budget: float | None = None # [关键修正] 這裡也要加，回傳時才看得到
     created_at: datetime
     selected_contractor_id: int | None = None
     
     client: User 
-    ratings: List[Rating] = [] # [延伸二]
-    issues: List[Issue] = []   # [延伸三]
+    ratings: List[Rating] = []
+    issues: List[Issue] = []
     
     class Config:
         from_attributes = True
