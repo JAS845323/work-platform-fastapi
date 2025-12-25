@@ -763,8 +763,11 @@
             if (!response.ok) {
                 const error = await response.json();
                 
-                // 偵測到 Pydantic 資料驗證錯誤 (通常是惡意篡改數據)
-                if (Array.isArray(error.detail)) {
+                // 偵測到 Pydantic 資料驗證錯誤 (通常是惡意篡改數據) 或 手動資安攔截
+                const isPydanticError = Array.isArray(error.detail);
+                const isSecurityError = typeof error.detail === 'string' && error.detail.includes("Invalid score");
+
+                if (isPydanticError || isSecurityError) {
                     
                     // 1. 視覺衝擊：在開發者工具 (Console) 印出巨大紅色警告
                     // 駭客通常會開著 F12 看回應，這能給予直接的心理壓力
@@ -785,16 +788,21 @@
                     warningMsg += "------------------------------------------------\n";
                     warningMsg += "偵測到的異常細節 (Violation Details)：\n";
                     
-                    error.detail.forEach(err => {
-                        // 翻譯錯誤訊息，讓它看起來像是系統自動生成的精確報告
-                        if (err.msg.includes('less than or equal to 5')) {
-                            warningMsg += `❌ [CRITICAL] 數值溢位攻擊 (Value Overflow): 欄位 '${err.loc[1]}' 數值異常 (>5)\n`;
-                        } else if (err.msg.includes('greater than or equal to 1')) {
-                            warningMsg += `❌ [CRITICAL] 數值下溢攻擊 (Value Underflow): 欄位 '${err.loc[1]}' 數值異常 (<1)\n`;
-                        } else {
-                            warningMsg += `❌ [INVALID] 格式錯誤: ${err.loc[1]} - ${err.msg}\n`;
-                        }
-                    });
+                    if (isPydanticError) {
+                        error.detail.forEach(err => {
+                            // 翻譯錯誤訊息，讓它看起來像是系統自動生成的精確報告
+                            if (err.msg.includes('less than or equal to 5')) {
+                                warningMsg += `❌ [CRITICAL] 數值溢位攻擊 (Value Overflow): 欄位 '${err.loc[1]}' 數值異常 (>5)\n`;
+                            } else if (err.msg.includes('greater than or equal to 1')) {
+                                warningMsg += `❌ [CRITICAL] 數值下溢攻擊 (Value Underflow): 欄位 '${err.loc[1]}' 數值異常 (<1)\n`;
+                            } else {
+                                warningMsg += `❌ [INVALID] 格式錯誤: ${err.loc[1]} - ${err.msg}\n`;
+                            }
+                        });
+                    } else {
+                        // 針對手動拋出的 HTTPException (字串型別)
+                        warningMsg += `❌ [CRITICAL] 數值篡改攻擊 (Value Tampering): ${error.detail}\n`;
+                    }
                     
                     // 拋出錯誤，這會觸發瀏覽器的 alert 視窗
                     throw new Error(warningMsg);
@@ -838,9 +846,13 @@
     const currentRatings = { 1: 0, 2: 0, 3: 0 };
 
     function highlightStars(dim, value) {
+        // [前端防呆] 限制預覽數值在 1~5，避免異常顯示
+        if (value > 5) value = 5;
+        if (value < 1) value = 1;
+
         const stars = document.querySelectorAll(`#stars-${dim} .star-icon`);
-        stars.forEach(star => {
-            const starVal = parseInt(star.dataset.val);
+        stars.forEach((star, index) => {
+            const starVal = index + 1; // [修正] 使用位置索引 (1~5) 代替 data-val，防止 HTML 被竄改導致不亮
             if (starVal <= value) {
                 star.classList.add('hover');
             } else {
@@ -852,9 +864,9 @@
     function resetStars(dim) {
         const stars = document.querySelectorAll(`#stars-${dim} .star-icon`);
         const savedVal = currentRatings[dim];
-        stars.forEach(star => {
+        stars.forEach((star, index) => {
             star.classList.remove('hover');
-            const starVal = parseInt(star.dataset.val);
+            const starVal = index + 1; // [修正] 使用位置索引
             if (starVal <= savedVal) {
                 star.classList.add('active');
             } else {
@@ -864,11 +876,15 @@
     }
 
     function setRating(dim, value) {
+        // [前端防呆] 強制限制數值在 1~5 之間，修正異常輸入
+        if (value > 5) value = 5;
+        if (value < 1) value = 1;
+
         currentRatings[dim] = value;
         document.getElementById(`score${dim}`).value = value;
         const stars = document.querySelectorAll(`#stars-${dim} .star-icon`);
-        stars.forEach(star => {
-            const starVal = parseInt(star.dataset.val);
+        stars.forEach((star, index) => {
+            const starVal = index + 1; // [修正] 使用位置索引
             if (starVal <= value) {
                 star.classList.add('active');
             } else {
