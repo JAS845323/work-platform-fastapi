@@ -737,6 +737,11 @@
         if (tabName === 'messages') {
             const list = document.getElementById("message-list");
             if(list) setTimeout(() => list.scrollTop = list.scrollHeight, 100);
+            
+            // 清除通知紅點
+            const btn = document.querySelector('button[onclick="switchTab(\'messages\')"]');
+            const dot = btn ? btn.querySelector('.notification-dot') : null;
+            if (dot) dot.remove();
         }
     }
 
@@ -1114,5 +1119,79 @@
     
     function editProject(id) { window.location.href = `/project/edit/${id}`; }
 
+    // --- 7. WebSocket Real-time Communication ---
+    let socket = null;
+    
+    function initWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/project/${PROJECT_ID}/${CURRENT_USER_ID}`;
+        
+        socket = new WebSocket(wsUrl);
+
+        socket.onopen = () => {
+            console.log("Connected to WebSocket");
+        };
+
+        socket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                handleWsMessage(data);
+            } catch (e) {
+                console.error("WS Parse Error", e);
+            }
+        };
+
+        socket.onclose = () => {
+            console.log("WebSocket disconnected. Reconnecting...");
+            setTimeout(initWebSocket, 3000);
+        };
+    }
+
+    function handleWsMessage(data) {
+        // 1. Project Chat Message
+        if (data.type === 'chat_message') {
+            const msg = data.payload;
+            if (msg.sender_id !== CURRENT_USER_ID) {
+                appendChatMessage(msg);
+                
+                if (!document.getElementById('tab-messages').classList.contains('active')) {
+                    const btn = document.querySelector('button[onclick="switchTab(\'messages\')"]');
+                    if(btn && !btn.querySelector('.notification-dot')) {
+                        btn.innerHTML += '<span class="notification-dot" style="background:#ec644b; width:8px; height:8px; border-radius:50%; display:inline-block; margin-left:5px;"></span>';
+                    }
+                }
+            }
+        }
+        // 2. Issue Updates
+        else if (data.type === 'issue_update' || data.type === 'issue_comment') {
+            if (data.sender_id !== CURRENT_USER_ID) {
+                loadIssues();
+            }
+        }
+    }
+
+    function appendChatMessage(msg) {
+        const list = document.getElementById("message-list");
+        if (!list) return;
+        const emptyState = list.querySelector('p');
+        if(emptyState && emptyState.innerText.includes("尚無訊息")) emptyState.remove();
+
+        const initial = msg.sender_name ? msg.sender_name.charAt(0).toUpperCase() : '?';
+        const timeStr = new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+        const msgHtml = `
+        <div class="chat-row theirs" style="animation: fadeIn 0.3s ease;">
+            <div class="chat-avatar">${initial}</div>
+            <div class="chat-bubble">
+                <span class="chat-sender-name">${msg.sender_name}</span>
+                ${msg.message}
+                <span class="chat-time">${timeStr}</span>
+            </div>
+        </div>`;
+        list.insertAdjacentHTML('beforeend', msgHtml);
+        list.scrollTop = list.scrollHeight;
+    }
+
+    document.addEventListener('DOMContentLoaded', initWebSocket);
 </script>
 {% endblock %}
