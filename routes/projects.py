@@ -272,6 +272,10 @@ async def create_message_for_project(
     db: Session = Depends(get_db),
     current_user: db_models.User = Depends(get_current_user)
 ):
+    # [資安防護] 輸入長度驗證：防止惡意長字串攻擊 (DoS)
+    if len(message.message) > 1000:
+        raise HTTPException(status_code=400, detail="Message is too long (limit: 1000 characters).")
+
     db_project = db.query(db_models.Project).filter(db_models.Project.id == project_id).first()
     if not db_project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -356,6 +360,14 @@ def submit_rating(
     db: Session = Depends(get_db),
     current_user: db_models.User = Depends(get_current_user)
 ):
+    # [資安防護] 1. 數值範圍驗證：防止惡意使用者繞過前端發送異常分數 (如 -100 或 9999)
+    if not (1 <= rating.score_dim1 <= 5 and 1 <= rating.score_dim2 <= 5 and 1 <= rating.score_dim3 <= 5):
+        raise HTTPException(status_code=400, detail="Invalid score: Ratings must be integers between 1 and 5.")
+
+    # [資安防護] 2. 輸入長度驗證：防止惡意長字串攻擊 (DoS) 或資料庫欄位溢位
+    if rating.comment and len(rating.comment) > 500:
+        raise HTTPException(status_code=400, detail="Comment is too long (limit: 500 characters).")
+
     db_project = db.query(db_models.Project).filter(db_models.Project.id == project_id).first()
     if not db_project:
         raise HTTPException(status_code=404, detail="Project not found")
