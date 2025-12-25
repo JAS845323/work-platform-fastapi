@@ -754,8 +754,48 @@
             const payload = isFile ? body : JSON.stringify(body);
             const response = await fetch(endpoint, { method, headers, body: payload });
             
+            // [駭客防禦系統] 錯誤攔截與威攝邏輯
             if (!response.ok) {
                 const error = await response.json();
+                
+                // 偵測到 Pydantic 資料驗證錯誤 (通常是惡意篡改數據)
+                if (Array.isArray(error.detail)) {
+                    
+                    // 1. 視覺衝擊：在開發者工具 (Console) 印出巨大紅色警告
+                    // 駭客通常會開著 F12 看回應，這能給予直接的心理壓力
+                    console.clear();
+                    console.log("%c🛑 SECURITY BREACH DETECTED 🛑", "color: red; font-size: 40px; font-weight: 900; background: black; padding: 20px; text-shadow: 0 0 10px red;");
+                    console.log("%cIllegal operation detected. Your IP address and browser fingerprint have been logged to the Security Audit System.", "font-size: 16px; color: red; font-weight: bold;");
+                    console.warn("System Integrity Check: FAILED");
+                    console.warn("User Account Status: FLAGGED FOR REVIEW");
+
+                    // 2. 心理戰術：構建充滿專業術語與法律後果的警告視窗
+                    let warningMsg = "🛑【嚴重資安警告 SYSTEM SECURITY ALERT】🛑\n\n";
+                    warningMsg += "⚠️ 系統偵測到非法參數篡改 (Illegal Parameter Tampering)！\n\n";
+                    warningMsg += "您的操作已觸發系統主動防禦機制 (Active Defense Protocol)。\n";
+                    warningMsg += "本次惡意請求的來源 IP 與裝置特徵碼 (Fingerprint) 已被永久記錄至資安稽核日誌。\n\n";
+                    warningMsg += "若這不是系統誤判，請立即停止此類行為，否則系統將執行以下懲處：\n";
+                    warningMsg += "1. [帳戶凍結] 您的帳號將被標記為「高風險」並面臨永久封鎖。\n";
+                    warningMsg += "2. [法律追訴] 平台保留相關數位證據 (Digital Forensics) 以追究法律責任。\n\n";
+                    warningMsg += "------------------------------------------------\n";
+                    warningMsg += "偵測到的異常細節 (Violation Details)：\n";
+                    
+                    error.detail.forEach(err => {
+                        // 翻譯錯誤訊息，讓它看起來像是系統自動生成的精確報告
+                        if (err.msg.includes('less than or equal to 5')) {
+                            warningMsg += `❌ [CRITICAL] 數值溢位攻擊 (Value Overflow): 欄位 '${err.loc[1]}' 數值異常 (>5)\n`;
+                        } else if (err.msg.includes('greater than or equal to 1')) {
+                            warningMsg += `❌ [CRITICAL] 數值下溢攻擊 (Value Underflow): 欄位 '${err.loc[1]}' 數值異常 (<1)\n`;
+                        } else {
+                            warningMsg += `❌ [INVALID] 格式錯誤: ${err.loc[1]} - ${err.msg}\n`;
+                        }
+                    });
+                    
+                    // 拋出錯誤，這會觸發瀏覽器的 alert 視窗
+                    throw new Error(warningMsg);
+                }
+
+                // 一般錯誤 (非攻擊類，例如 404 Not Found)
                 throw new Error(error.detail || "API 請求失敗");
             }
             

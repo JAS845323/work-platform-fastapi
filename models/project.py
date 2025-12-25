@@ -1,4 +1,4 @@
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, validator, Field
 from enum import Enum
 from datetime import datetime
 from typing import List, Optional
@@ -13,9 +13,11 @@ class ProjectStatus(str, Enum):
 
 # --- Rating Models ---
 class RatingCreate(BaseModel):
-    score_dim1: int
-    score_dim2: int
-    score_dim3: int
+    # [資安防護] 使用 Field 強制限制數值範圍 (ge=1, le=5)
+    # 如果駭客傳送 100，Pydantic 會在進入路由前直接攔截並拋出錯誤
+    score_dim1: int = Field(..., ge=1, le=5, description="評分必須在 1-5 之間")
+    score_dim2: int = Field(..., ge=1, le=5, description="評分必須在 1-5 之間")
+    score_dim3: int = Field(..., ge=1, le=5, description="評分必須在 1-5 之間")
     comment: str | None = None
 
 class Rating(BaseModel):
