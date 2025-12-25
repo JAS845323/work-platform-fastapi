@@ -1151,7 +1151,7 @@
         // 1. Project Chat Message
         if (data.type === 'chat_message') {
             const msg = data.payload;
-            if (msg.sender_id !== CURRENT_USER_ID) {
+            if (data.sender_id !== CURRENT_USER_ID) {
                 appendChatMessage(msg);
                 
                 if (!document.getElementById('tab-messages').classList.contains('active')) {

@@ -18,6 +18,7 @@ import os
 from routes import auth, projects, upload
 from db.db import get_db, engine
 from db import models as db_models
+from websocket_manager import router as ws_router
 
 # 1. 載入環境變數與初始化資料表
 load_dotenv()
@@ -60,6 +61,7 @@ templates = Jinja2Templates(directory="templates")
 app.include_router(auth.router, prefix="/api/auth", tags=["API - Authentication"])
 app.include_router(projects.router, prefix="/api/projects", tags=["API - Projects"])
 app.include_router(upload.router, prefix="/api", tags=["API - Upload"])
+app.include_router(ws_router)
 
 # -----------------------------------------------
 # 4. 頁面路由 (Page Routers)

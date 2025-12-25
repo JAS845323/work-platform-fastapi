@@ -17,6 +17,7 @@ from models import project as pydantic_models
 from models import communication as pydantic_comm_models
 from models import bid as pydantic_bid_models
 from auth.security import get_current_client, get_current_contractor, get_current_user
+from websocket_manager import manager
 
 router = APIRouter()
 
@@ -265,7 +266,7 @@ def update_project_status(
 
 # --- API 10: 傳送訊息 ---
 @router.post("/{project_id}/messages", response_model=pydantic_comm_models.Message)
-def create_message_for_project(
+async def create_message_for_project(
     project_id: int,
     message: pydantic_comm_models.MessageCreate,
     db: Session = Depends(get_db),
@@ -287,6 +288,17 @@ def create_message_for_project(
     db.add(db_message)
     db.commit()
     db.refresh(db_message)
+    
+    # [WebSocket] 廣播訊息
+    await manager.broadcast(project_id, {
+        "type": "chat_message",
+        "sender_id": current_user.id,
+        "payload": {
+            "message": db_message.message,
+            "sender_name": current_user.username,
+            "created_at": db_message.created_at.isoformat() if db_message.created_at else datetime.now().isoformat()
+        }
+    })
     return db_message
 
 # --- API 11: 讀取訊息 ---
@@ -395,7 +407,7 @@ def submit_rating(
 
 # --- API 15: Issue Tracker - 新增 [延伸三] ---
 @router.post("/{project_id}/issues", response_model=pydantic_models.Issue)
-def create_issue(
+async def create_issue(
     project_id: int,
     issue: pydantic_models.IssueCreate,
     db: Session = Depends(get_db),
@@ -421,6 +433,13 @@ def create_issue(
     db.add(db_issue)
     db.commit()
     db.refresh(db_issue)
+    
+    # [WebSocket] 通知更新 Issue 列表
+    await manager.broadcast(project_id, {
+        "type": "issue_update",
+        "sender_id": current_user.id,
+        "payload": {"action": "created", "issue_id": db_issue.id}
+    })
     return db_issue
 
 # --- API 16: Issue Tracker - 列表/更新/留言 [延伸三] ---
@@ -442,7 +461,7 @@ def get_issues(
     return issues
 
 @router.post("/issues/{issue_id}/comments", response_model=pydantic_models.IssueComment)
-def create_issue_comment(
+async def create_issue_comment(
     issue_id: int,
     comment: pydantic_models.IssueCommentCreate,
     db: Session = Depends(get_db),
@@ -452,6 +471,8 @@ def create_issue_comment(
     if not db_issue:
         raise HTTPException(status_code=404, detail="Issue not found")
         
+    project_id = db_issue.project_id
+
     db_comment = db_models.IssueComment(
         issue_id=issue_id,
         user_id=current_user.id,
@@ -460,10 +481,17 @@ def create_issue_comment(
     db.add(db_comment)
     db.commit()
     db.refresh(db_comment)
+    
+    # [WebSocket] 通知更新 Issue 內容
+    await manager.broadcast(project_id, {
+        "type": "issue_comment",
+        "sender_id": current_user.id,
+        "payload": {"issue_id": issue_id}
+    })
     return db_comment
 
 @router.put("/issues/{issue_id}/resolve")
-def resolve_issue(
+async def resolve_issue(
     issue_id: int,
     db: Session = Depends(get_db),
     current_client: db_models.User = Depends(get_current_client) # 只有甲方能解決
@@ -476,6 +504,13 @@ def resolve_issue(
         
     db_issue.status = 'resolved'
     db.commit()
+    
+    # [WebSocket] 通知 Issue 狀態變更
+    await manager.broadcast(db_issue.project_id, {
+        "type": "issue_update",
+        "sender_id": current_client.id,
+        "payload": {"action": "resolved", "issue_id": issue_id}
+    })
     return {"message": "Issue resolved"}
     
 @router.post("/{project_id}/favorite")
