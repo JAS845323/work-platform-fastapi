@@ -520,8 +520,8 @@
                                 <div style="width: 100%;">
                                     <p style="color: rgba(255,255,255,0.9); line-height: 1.6;">{{ bid.proposal_text }}</p>
                                     {% if bid.proposal_file_path %}
-                                    <a href="/media/{{ bid.proposal_file_path }}" target="_blank" class="glass-button btn-inline-xs" style="text-decoration: none; margin-left: 0;">
-                                        <i class="fas fa-file-pdf"></i> 下載提案計畫書
+                                    <a href="/media/{{ bid.proposal_file_path }}" target="_blank" class="glass-button btn-inline-xs" style="text-decoration: none; margin-left: 0; display: inline-flex; align-items: center;">
+                                        <i class="fas fa-file-pdf"></i>&nbsp;下載
                                     </a>
                                     {% endif %}
                                 </div>
